@@ -291,22 +291,6 @@ const VideoCanvas = forwardRef(({
             </>
           )}
       </div>
-
-      {src && (
-          <div className="w-full bg-gray-900 px-4 py-2 border-t border-gray-800 flex items-center gap-2 z-20 shrink-0">
-             <span className="text-xs font-mono text-gray-400 w-10 text-right">{currentTime.toFixed(1)}s</span>
-             <input 
-                type="range" 
-                min="0" 
-                max={duration || 100} 
-                step="0.01"
-                value={currentTime} 
-                onChange={handleScrub}
-                className="flex-1 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-             />
-             <span className="text-xs font-mono text-gray-400 w-10">{duration.toFixed(1)}s</span>
-          </div>
-      )}
     </div>
   );
 });
@@ -315,7 +299,7 @@ const VideoCanvas = forwardRef(({
 export default function Swingstr() {
   const [view, setView] = useState('analyze'); 
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [layout, setLayout] = useState('split'); 
+  const [layout, setLayout] = useState('single'); 
   const [sync, setSync] = useState(false);
   const [activeScreen, setActiveScreen] = useState('left'); 
   const [isPlaying, setIsPlaying] = useState(false);
