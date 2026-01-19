@@ -15,7 +15,7 @@ const Button = ({ onClick, active, children, className = "", title = "", disable
     onClick={onClick}
     title={title}
     disabled={disabled}
-    className={`rounded-lg transition-all duration-200 flex items-center justify-center touch-manipulation ${
+    className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center ${
       active 
         ? 'bg-purple-600 text-white shadow-lg scale-105' 
         : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
@@ -29,7 +29,7 @@ const IconButton = ({ onClick, active, children, title, className = "" }) => (
   <button
     onClick={onClick}
     title={title}
-    className={`rounded-lg transition-all flex items-center justify-center touch-manipulation ${
+    className={`p-2 rounded-lg transition-all flex items-center justify-center ${
       active 
         ? 'bg-purple-600 text-white shadow-lg' 
         : 'text-gray-400 hover:bg-gray-700 hover:text-white'
@@ -42,12 +42,12 @@ const IconButton = ({ onClick, active, children, title, className = "" }) => (
 const MenuButton = ({ icon: Icon, label, active, onClick, isOpen }) => (
     <button 
         onClick={onClick}
-        className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all touch-manipulation ${
+        className={`relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
             active || isOpen ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
         }`}
     >
-        <Icon size={16} className={`sm:w-[18px] sm:h-[18px] ${active ? 'text-purple-400' : ''}`} />
-        <span className="text-xs sm:text-sm font-medium whitespace-nowrap">{label}</span>
+        <Icon size={18} className={active ? 'text-purple-400' : ''} />
+        <span className="text-sm font-medium">{label}</span>
         {isOpen && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-700 rotate-45 translate-y-1"></div>}
     </button>
 );
@@ -235,13 +235,6 @@ const VideoCanvas = forwardRef(({
     return { x: (clientX - panX - centerX) / zoomLevel + centerX, y: (clientY - panY - centerY) / zoomLevel + centerY };
   };
 
-  const getTouchPos = (touch) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const clientX = touch.clientX - rect.left; const clientY = touch.clientY - rect.top;
-    const centerX = rect.width / 2; const centerY = rect.height / 2;
-    return { x: (clientX - panX - centerX) / zoomLevel + centerX, y: (clientY - panY - centerY) / zoomLevel + centerY };
-  };
-
   const handleMouseDown = (e) => {
     onActivate();
     if (!src) return;
@@ -270,85 +263,9 @@ const VideoCanvas = forwardRef(({
 
   const handleMouseUp = () => { isPanning.current = false; if (!isDrawing) return; setIsDrawing(false); if (currentShape) { setShapes([...shapes, currentShape]); setCurrentShape(null); } };
 
-  // Touch event handlers for mobile drawing
-  const lastTouchPos = useRef(null);
-  
-  const handleTouchStart = (e) => {
-    e.preventDefault();
-    onActivate();
-    if (!src) return;
-    if (e.touches.length !== 1) return; // Only handle single touch
-    
-    const touch = e.touches[0];
-    lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
-    
-    if (tool === 'move' && zoomLevel > 1.0) { 
-      isPanning.current = true; 
-      return; 
-    }
-    if (tool === 'move') return;
-    
-    const pos = getTouchPos(touch);
-    if (tool === 'angle') {
-      const newPoints = [...points, pos]; 
-      setPoints(newPoints);
-      if (newPoints.length === 3) { 
-        setShapes([...shapes, { type: 'angle', p1: newPoints[0], p2: newPoints[1], p3: newPoints[2], color, width: lineWidth }]); 
-        setPoints([]); 
-      }
-      return;
-    }
-    setIsDrawing(true);
-    if (tool === 'free') setCurrentShape({ type: 'free', points: [pos], color, width: lineWidth });
-    else setCurrentShape({ type: tool, start: pos, end: pos, color, width: lineWidth });
-  };
-
-  const handleTouchMove = (e) => {
-    e.preventDefault();
-    if (e.touches.length !== 1) return; // Only handle single touch
-    
-    const touch = e.touches[0];
-    
-    if (isPanning.current && lastTouchPos.current) {
-      const deltaX = touch.clientX - lastTouchPos.current.x;
-      const deltaY = touch.clientY - lastTouchPos.current.y;
-      setPanX(prev => prev + deltaX);
-      setPanY(prev => prev + deltaY);
-      lastTouchPos.current = { x: touch.clientX, y: touch.clientY };
-      return;
-    }
-    
-    if (!isDrawing) return;
-    const pos = getTouchPos(touch);
-    if (tool === 'free') setCurrentShape(prev => ({ ...prev, points: [...prev.points, pos] }));
-    else setCurrentShape(prev => ({ ...prev, end: pos }));
-  };
-
-  const handleTouchEnd = (e) => {
-    e.preventDefault();
-    isPanning.current = false;
-    lastTouchPos.current = null;
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    if (currentShape) { 
-      setShapes([...shapes, currentShape]); 
-      setCurrentShape(null); 
-    }
-  };
-
   return (
     <div ref={containerRef} className={`relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-black ${isActive ? 'ring-2 ring-purple-500 z-10' : 'border-r border-gray-800'}`}>
-      <div 
-        className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair" 
-        onMouseMove={handleMouseMove} 
-        onMouseUp={handleMouseUp} 
-        onMouseLeave={handleMouseUp} 
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ touchAction: 'none' }}
-      >
+      <div className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp} onMouseDown={handleMouseDown}>
           {!src && (
               <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
                  <label className="cursor-pointer hover:text-purple-400 transition-colors flex flex-col items-center">
@@ -523,47 +440,47 @@ export default function Swingstr() {
 
   // --- Popup Menu Content ---
   const ToolMenu = () => (
-      <div className="absolute bottom-16 left-2 sm:left-4 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-2 w-44 sm:w-48 z-50 max-w-[calc(100vw-1rem)]">
+      <div className="absolute bottom-16 left-4 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-2 w-48 z-50">
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Drawing</div>
           <div className="grid grid-cols-4 gap-1">
-            <IconButton onClick={() => {setTool('line'); setActiveMenu(null)}} active={tool === 'line'} title="Line" className="p-1.5 sm:p-2"><Minus size={16} className="sm:w-[18px] sm:h-[18px] rotate-45"/></IconButton>
-            <IconButton onClick={() => {setTool('angle'); setActiveMenu(null)}} active={tool === 'angle'} title="Angle" className="p-1.5 sm:p-2"><span className="font-bold text-xs sm:text-sm">∠</span></IconButton>
-            <IconButton onClick={() => {setTool('circle'); setActiveMenu(null)}} active={tool === 'circle'} title="Circle" className="p-1.5 sm:p-2"><CircleIcon size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
-            <IconButton onClick={() => {setTool('rect'); setActiveMenu(null)}} active={tool === 'rect'} title="Box" className="p-1.5 sm:p-2"><Square size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
-            <IconButton onClick={() => {setTool('free'); setActiveMenu(null)}} active={tool === 'free'} title="Freehand" className="p-1.5 sm:p-2"><Edit2 size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
+            <IconButton onClick={() => {setTool('line'); setActiveMenu(null)}} active={tool === 'line'} title="Line"><Minus size={18} className="rotate-45"/></IconButton>
+            <IconButton onClick={() => {setTool('angle'); setActiveMenu(null)}} active={tool === 'angle'} title="Angle"><span className="font-bold text-sm">∠</span></IconButton>
+            <IconButton onClick={() => {setTool('circle'); setActiveMenu(null)}} active={tool === 'circle'} title="Circle"><CircleIcon size={18}/></IconButton>
+            <IconButton onClick={() => {setTool('rect'); setActiveMenu(null)}} active={tool === 'rect'} title="Box"><Square size={18}/></IconButton>
+            <IconButton onClick={() => {setTool('free'); setActiveMenu(null)}} active={tool === 'free'} title="Freehand"><Edit2 size={18}/></IconButton>
           </div>
           <div className="h-px bg-gray-700 my-1"></div>
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Privacy</div>
-          <button onClick={() => {setTool('blur'); setActiveMenu(null)}} className={`flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-gray-700 w-full touch-manipulation ${tool === 'blur' ? 'text-purple-400' : 'text-gray-300'}`}>
-            <EyeOff size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="text-xs sm:text-sm">Face Blur</span>
+          <button onClick={() => {setTool('blur'); setActiveMenu(null)}} className={`flex items-center gap-3 p-2 rounded hover:bg-gray-700 w-full ${tool === 'blur' ? 'text-purple-400' : 'text-gray-300'}`}>
+            <EyeOff size={18} /> <span className="text-sm">Face Blur</span>
           </button>
       </div>
   );
 
   const StyleMenu = () => (
-      <div className="absolute bottom-16 left-2 sm:left-32 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-3 sm:p-4 w-56 sm:w-64 z-50 max-w-[calc(100vw-1rem)]">
-          <div className="text-xs font-bold text-gray-500 mb-2 sm:mb-3 uppercase tracking-wider">Stroke Color</div>
-          <div className="flex gap-2 mb-3 sm:mb-4 flex-wrap">
+      <div className="absolute bottom-16 left-32 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4 w-64 z-50">
+          <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">Stroke Color</div>
+          <div className="flex gap-2 mb-4">
             {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ffffff'].map(c => (
-                <button key={c} onClick={() => setColor(c)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 transition-transform hover:scale-110 touch-manipulation ${color === c ? 'border-white scale-110 ring-2 ring-purple-500' : 'border-transparent'}`} style={{backgroundColor: c}} />
+                <button key={c} onClick={() => setColor(c)} className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${color === c ? 'border-white scale-110 ring-2 ring-purple-500' : 'border-transparent'}`} style={{backgroundColor: c}} />
             ))}
           </div>
           <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Thickness</div>
-          <div className="flex items-center gap-2 sm:gap-3">
-             <div className="h-1 bg-white rounded flex-shrink-0" style={{width: Math.max(2, lineWidth * 2) + 'px'}}></div>
-             <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="flex-1 accent-purple-500 h-1 bg-gray-600 rounded-lg cursor-pointer" style={{ touchAction: 'none' }} />
+          <div className="flex items-center gap-3">
+             <div className="h-1 bg-white rounded" style={{width: Math.max(2, lineWidth * 2) + 'px'}}></div>
+             <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="flex-1 accent-purple-500 h-1 bg-gray-600 rounded-lg cursor-pointer" />
           </div>
       </div>
   );
 
   const SpeedMenu = () => (
-      <div className="absolute bottom-16 right-2 sm:right-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 w-28 sm:w-32 z-50 max-w-[calc(100vw-1rem)]">
+      <div className="absolute bottom-16 right-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 w-32 z-50">
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Playback Speed</div>
           {[0.25, 0.5, 0.75, 1.0, 1.5, 2.0].map(r => (
              <button 
                 key={r} 
                 onClick={() => { changeSpeed(r); setActiveMenu(null); }} 
-                className={`flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-gray-700 text-xs sm:text-sm touch-manipulation ${speed === r ? 'bg-purple-900/50 text-purple-400 font-bold' : 'text-gray-300'}`}
+                className={`flex items-center justify-between px-3 py-2 rounded hover:bg-gray-700 text-sm ${speed === r ? 'bg-purple-900/50 text-purple-400 font-bold' : 'text-gray-300'}`}
              >
                 <span>{r}x</span>
                 {speed === r && <div className="w-2 h-2 rounded-full bg-purple-500"></div>}
@@ -575,18 +492,18 @@ export default function Swingstr() {
 
   if (view === 'library') {
     return (
-        <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative overflow-hidden" style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0 }}>
+        <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative">
             {editingStudent && (
-                <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
-                    <div className="bg-gray-800 p-4 sm:p-6 rounded-xl border border-gray-700 w-full max-w-sm shadow-2xl">
-                        <h3 className="font-bold text-base sm:text-lg mb-4">Edit Profile</h3>
+                <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center">
+                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
+                        <h3 className="font-bold text-lg mb-4">Edit Profile</h3>
                         <form onSubmit={saveEditedStudent} className="space-y-4">
-                            <input name="name" defaultValue={editingStudent.name} placeholder="Name" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm sm:text-base" />
-                            <input name="email" defaultValue={editingStudent.email} placeholder="Email" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm sm:text-base" />
-                            <input name="phone" defaultValue={editingStudent.phone} placeholder="Phone" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm sm:text-base" />
-                            <button type="submit" className="w-full bg-purple-600 py-2 rounded font-bold hover:bg-purple-500 touch-manipulation text-sm sm:text-base">Save Changes</button>
+                            <input name="name" defaultValue={editingStudent.name} placeholder="Name" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="email" defaultValue={editingStudent.email} placeholder="Email" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="phone" defaultValue={editingStudent.phone} placeholder="Phone" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <button type="submit" className="w-full bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Save Changes</button>
                         </form>
-                        <button onClick={() => setEditingStudent(null)} className="mt-2 w-full text-gray-400 hover:text-white text-xs sm:text-sm touch-manipulation">Cancel</button>
+                        <button onClick={() => setEditingStudent(null)} className="mt-2 w-full text-gray-400 hover:text-white text-sm">Cancel</button>
                     </div>
                 </div>
             )}
@@ -641,22 +558,22 @@ export default function Swingstr() {
   }
 
   return (
-    <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative overflow-hidden" onClick={() => setActiveMenu(null)} style={{ height: '100vh', width: '100vw', position: 'fixed', top: 0, left: 0 }}>
+    <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative" onClick={() => setActiveMenu(null)}>
       
       {/* Save Modal */}
       {showSaveModal && (
-          <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
-              <div className="bg-gray-800 p-4 sm:p-6 rounded-xl border border-gray-700 w-full max-w-sm shadow-2xl">
-                  <h3 className="font-bold text-base sm:text-lg mb-4">Save Video to Student</h3>
+          <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
+                  <h3 className="font-bold text-lg mb-4">Save Video to Student</h3>
                   <div className="space-y-4">
-                      <select className="w-full bg-gray-900 p-2 rounded border border-gray-600 text-sm sm:text-base" onChange={(e) => setSaveData({...saveData, studentId: e.target.value})} value={saveData.studentId}>
+                      <select className="w-full bg-gray-900 p-2 rounded border border-gray-600" onChange={(e) => setSaveData({...saveData, studentId: e.target.value})} value={saveData.studentId}>
                           <option value="">Select Student...</option>
                           {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
-                      <input className="w-full bg-gray-900 p-2 rounded border border-gray-600 text-sm sm:text-base" placeholder="Label" value={saveData.label} onChange={(e) => setSaveData({...saveData, label: e.target.value})} />
+                      <input className="w-full bg-gray-900 p-2 rounded border border-gray-600" placeholder="Label" value={saveData.label} onChange={(e) => setSaveData({...saveData, label: e.target.value})} />
                       <div className="flex gap-2">
-                        <button onClick={() => setShowSaveModal(false)} className="flex-1 py-2 rounded text-gray-400 hover:text-white touch-manipulation text-sm sm:text-base">Cancel</button>
-                        <button onClick={saveToStudent} className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500 touch-manipulation text-sm sm:text-base">Save</button>
+                        <button onClick={() => setShowSaveModal(false)} className="flex-1 py-2 rounded text-gray-400 hover:text-white">Cancel</button>
+                        <button onClick={saveToStudent} className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Save</button>
                       </div>
                   </div>
               </div>
@@ -670,31 +587,31 @@ export default function Swingstr() {
          {activeMenu === 'speed' && <SpeedMenu />}
       </div>
 
-      <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-2 sm:px-4 shrink-0 z-20 overflow-hidden">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink">
-           <div className="flex items-center gap-2 sm:gap-3">
-                <img src="/swingstr-logo.jpg" alt="Swingstr" className="h-8 w-8 sm:h-10 sm:w-10 rounded-full border-2 border-purple-500 object-cover flex-shrink-0" onError={(e) => { e.target.style.display='none'; }} />
-                <h1 className="font-bold text-base sm:text-lg tracking-tight text-white whitespace-nowrap">Swing<span className="text-purple-500">str</span></h1>
+      <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
+        <div className="flex items-center gap-4">
+           <div className="flex items-center gap-3">
+                <img src="/swingstr-logo.jpg" alt="Swingstr" className="h-10 w-10 rounded-full border-2 border-purple-500 object-cover" onError={(e) => { e.target.style.display='none'; }} />
+                <h1 className="font-bold text-lg tracking-tight text-white">Swing<span className="text-purple-500">str</span></h1>
            </div>
-           <button onClick={() => setView('library')} className="hidden sm:flex text-xs bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 items-center gap-1 border border-gray-700 whitespace-nowrap"><Users size={12}/> Student Library</button>
+           <button onClick={() => setView('library')} className="text-xs bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 flex items-center gap-1 border border-gray-700"><Users size={12}/> Student Library</button>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div className="flex items-center gap-4">
             <div className="flex bg-gray-800 rounded-lg p-1">
-                <button onClick={() => { setLayout('single'); setActiveScreen('left'); }} className={`p-1 sm:p-1.5 rounded ${layout === 'single' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}><Maximize size={16} className="sm:w-[18px] sm:h-[18px]" /></button>
-                <button onClick={() => setLayout('split')} className={`p-1 sm:p-1.5 rounded ${layout === 'split' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}><SplitSquareHorizontal size={16} className="sm:w-[18px] sm:h-[18px]" /></button>
+                <button onClick={() => { setLayout('single'); setActiveScreen('left'); }} className={`p-1.5 rounded ${layout === 'single' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}><Maximize size={18} /></button>
+                <button onClick={() => setLayout('split')} className={`p-1.5 rounded ${layout === 'split' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}><SplitSquareHorizontal size={18} /></button>
             </div>
             {layout === 'split' && (
-                <button onClick={() => setSync(!sync)} className={`hidden sm:flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors ${sync ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>{sync ? <LinkIcon size={14} className="sm:w-4 sm:h-4" /> : <Link2Off size={14} className="sm:w-4 sm:h-4" />} <span className="hidden md:inline">{sync ? 'Linked' : 'Unlinked'}</span></button>
+                <button onClick={() => setSync(!sync)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${sync ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>{sync ? <LinkIcon size={16} /> : <Link2Off size={16} />} {sync ? 'Linked' : 'Unlinked'}</button>
             )}
         </div>
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-           <Button onClick={() => adjustZoom(-0.2)} className="p-1.5 sm:p-2"><ZoomOut size={16} className="sm:w-[18px] sm:h-[18px]" /></Button>
-           <span className="w-10 sm:w-12 text-center font-mono text-xs sm:text-sm text-purple-400 font-bold">{zooms[activeScreen].toFixed(1)}x</span>
-           <Button onClick={() => adjustZoom(0.2)} className="p-1.5 sm:p-2"><ZoomIn size={16} className="sm:w-[18px] sm:h-[18px]" /></Button>
+        <div className="flex items-center gap-2">
+           <Button onClick={() => adjustZoom(-0.2)}><ZoomOut size={18} /></Button>
+           <span className="w-12 text-center font-mono text-sm text-purple-400 font-bold">{zooms[activeScreen].toFixed(1)}x</span>
+           <Button onClick={() => adjustZoom(0.2)}><ZoomIn size={18} /></Button>
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden bg-black relative" style={{ minHeight: 0, flexShrink: 1 }}>
+      <main className="flex-1 flex overflow-hidden bg-black relative">
          <div className={`h-full relative flex flex-col ${layout === 'split' ? 'w-1/2' : 'w-full'} ${activeScreen === 'left' ? 'z-10' : 'z-0'}`}>
             {activeScreen === 'left' && <div className="absolute top-4 left-4 bg-purple-600 text-xs font-bold px-2 py-1 rounded z-20 pointer-events-none">ACTIVE</div>}
             <VideoCanvas 
@@ -720,30 +637,29 @@ export default function Swingstr() {
          )}
       </main>
 
-      <footer className="bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30" style={{ flexShrink: 0 }}>
+      <footer className="bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30">
          
          {/* Global Scrubber */}
-         <div className="w-full px-2 sm:px-4 pt-2 pb-1 flex items-center gap-2 sm:gap-3 border-b border-gray-700 bg-gray-850">
-             <span className="text-xs font-mono text-gray-400 w-10 sm:w-12 text-right flex-shrink-0">{globalTime.toFixed(1)}s</span>
+         <div className="w-full px-4 pt-2 pb-1 flex items-center gap-3 border-b border-gray-700 bg-gray-850">
+             <span className="text-xs font-mono text-gray-400 w-12 text-right">{globalTime.toFixed(1)}s</span>
              <input 
                 type="range" 
                 min="0" max={globalDuration || 100} step="0.01" 
                 value={globalTime} onChange={handleGlobalScrub}
                 className="flex-1 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
-                style={{ touchAction: 'none' }}
              />
-             <span className="text-xs font-mono text-gray-400 w-10 sm:w-12 flex-shrink-0">{globalDuration.toFixed(1)}s</span>
+             <span className="text-xs font-mono text-gray-400 w-12">{globalDuration.toFixed(1)}s</span>
          </div>
 
          {/* Controls Bar */}
-         <div className="flex items-center justify-between px-2 sm:px-4 py-2 h-14 overflow-hidden">
+         <div className="flex items-center justify-between px-4 py-2 h-14">
              {/* Tool Groups */}
-             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                <IconButton onClick={() => setTool('move')} active={tool === 'move'} title="Move/Pan" className="p-1.5 sm:p-2"><MousePointer2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
-                <div className="w-px h-6 sm:h-8 bg-gray-700 mx-0.5 sm:mx-1"></div>
+             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <IconButton onClick={() => setTool('move')} active={tool === 'move'} title="Move/Pan"><MousePointer2 size={20}/></IconButton>
+                <div className="w-px h-8 bg-gray-700 mx-1"></div>
                 
                 <MenuButton 
-                    icon={PenTool} label="Draw" 
+                    icon={PenTool} label="Drawing" 
                     active={['line','angle','circle','rect','free','blur'].includes(tool)} 
                     isOpen={activeMenu === 'tools'}
                     onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')} 
@@ -756,21 +672,21 @@ export default function Swingstr() {
                     onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')} 
                 />
 
-                <div className="w-px h-6 sm:h-8 bg-gray-700 mx-0.5 sm:mx-1"></div>
-                <IconButton onClick={clearShapes} title="Clear All" className="text-red-400 hover:bg-red-900/30 p-1.5 sm:p-2"><Trash2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
+                <div className="w-px h-8 bg-gray-700 mx-1"></div>
+                <IconButton onClick={clearShapes} title="Clear All" className="text-red-400 hover:bg-red-900/30"><Trash2 size={20}/></IconButton>
              </div>
 
              {/* Playback */}
-             <div className="flex items-center gap-2 sm:gap-4 absolute left-1/2 -translate-x-1/2">
-                <button onClick={() => seek(-0.05)} className="text-gray-400 hover:text-white touch-manipulation"><ChevronLeft size={24} className="sm:w-7 sm:h-7" /></button>
-                <button onClick={togglePlay} className="bg-purple-600 text-white p-1.5 sm:p-2 rounded-full hover:bg-purple-500 shadow-lg active:scale-95 touch-manipulation">
-                    {isPlaying ? <Pause size={20} fill="currentColor" className="sm:w-6 sm:h-6" /> : <Play size={20} fill="currentColor" className="ml-0.5 sm:ml-1 sm:w-6 sm:h-6" />}
+             <div className="flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
+                <button onClick={() => seek(-0.05)} className="text-gray-400 hover:text-white"><ChevronLeft size={28} /></button>
+                <button onClick={togglePlay} className="bg-purple-600 text-white p-2 rounded-full hover:bg-purple-500 shadow-lg active:scale-95">
+                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
                 </button>
-                <button onClick={() => seek(0.05)} className="text-gray-400 hover:text-white touch-manipulation"><ChevronRight size={24} className="sm:w-7 sm:h-7" /></button>
+                <button onClick={() => seek(0.05)} className="text-gray-400 hover:text-white"><ChevronRight size={28} /></button>
              </div>
 
              {/* Actions */}
-             <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+             <div className="flex items-center gap-2">
                 {/* Speed Menu Button */}
                 <MenuButton 
                     icon={Gauge} label={`${speed}x`}
@@ -779,8 +695,8 @@ export default function Swingstr() {
                     onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')} 
                 />
 
-                <IconButton onClick={handleSnapshot} title="Snapshot" className="p-1.5 sm:p-2"><Camera size={18} className="sm:w-5 sm:h-5"/></IconButton>
-                <IconButton onClick={openSaveModal} title="Save to Student" className="text-purple-400 hover:text-purple-200 p-1.5 sm:p-2"><Save size={18} className="sm:w-5 sm:h-5"/></IconButton>
+                <IconButton onClick={handleSnapshot} title="Snapshot"><Camera size={20}/></IconButton>
+                <IconButton onClick={openSaveModal} title="Save to Student" className="text-purple-400 hover:text-purple-200"><Save size={20}/></IconButton>
              </div>
          </div>
       </footer>
