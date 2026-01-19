@@ -350,14 +350,14 @@ const VideoCanvas = forwardRef(({
         style={{ touchAction: 'none' }}
       >
           {!src && (
-              <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
-                 <label className="cursor-pointer hover:text-purple-400 transition-colors flex flex-col items-center">
+              <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+                 <label className="cursor-pointer hover:text-purple-400 transition-colors flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
                     <Upload size={48} className="mb-2 opacity-50" />
                     <p className="text-lg font-medium">Upload File</p>
                     <input type="file" accept="video/*" className="hidden" onChange={onUpload} />
                  </label>
                  <div className="flex items-center gap-2 text-sm opacity-50"><span>or</span></div>
-                 <button onClick={onUrlUpload} className="flex items-center gap-2 hover:text-purple-400 transition-colors"><Globe size={24} /><span className="font-medium">Load from URL</span></button>
+                 <button onClick={(e) => { e.stopPropagation(); onUrlUpload(); }} className="flex items-center gap-2 hover:text-purple-400 transition-colors"><Globe size={24} /><span className="font-medium">Load from URL</span></button>
               </div>
           )}
           {src && (
@@ -523,46 +523,46 @@ export default function Swingstr() {
 
   // --- Popup Menu Content ---
   const ToolMenu = () => (
-      <div className="absolute bottom-16 left-2 sm:left-4 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-2 w-44 sm:w-48 z-50 max-w-[calc(100vw-1rem)]">
+      <div className="fixed bottom-20 left-2 sm:left-4 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-2 w-44 sm:w-48 z-[60] max-w-[calc(100vw-1rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Drawing</div>
           <div className="grid grid-cols-4 gap-1">
-            <IconButton onClick={() => {setTool('line'); setActiveMenu(null)}} active={tool === 'line'} title="Line" className="p-1.5 sm:p-2"><Minus size={16} className="sm:w-[18px] sm:h-[18px] rotate-45"/></IconButton>
-            <IconButton onClick={() => {setTool('angle'); setActiveMenu(null)}} active={tool === 'angle'} title="Angle" className="p-1.5 sm:p-2"><span className="font-bold text-xs sm:text-sm">∠</span></IconButton>
-            <IconButton onClick={() => {setTool('circle'); setActiveMenu(null)}} active={tool === 'circle'} title="Circle" className="p-1.5 sm:p-2"><CircleIcon size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
-            <IconButton onClick={() => {setTool('rect'); setActiveMenu(null)}} active={tool === 'rect'} title="Box" className="p-1.5 sm:p-2"><Square size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
-            <IconButton onClick={() => {setTool('free'); setActiveMenu(null)}} active={tool === 'free'} title="Freehand" className="p-1.5 sm:p-2"><Edit2 size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
+            <IconButton onClick={(e) => { e.stopPropagation(); setTool('line'); setActiveMenu(null); }} active={tool === 'line'} title="Line" className="p-1.5 sm:p-2"><Minus size={16} className="sm:w-[18px] sm:h-[18px] rotate-45"/></IconButton>
+            <IconButton onClick={(e) => { e.stopPropagation(); setTool('angle'); setActiveMenu(null); }} active={tool === 'angle'} title="Angle" className="p-1.5 sm:p-2"><span className="font-bold text-xs sm:text-sm">∠</span></IconButton>
+            <IconButton onClick={(e) => { e.stopPropagation(); setTool('circle'); setActiveMenu(null); }} active={tool === 'circle'} title="Circle" className="p-1.5 sm:p-2"><CircleIcon size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
+            <IconButton onClick={(e) => { e.stopPropagation(); setTool('rect'); setActiveMenu(null); }} active={tool === 'rect'} title="Box" className="p-1.5 sm:p-2"><Square size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
+            <IconButton onClick={(e) => { e.stopPropagation(); setTool('free'); setActiveMenu(null); }} active={tool === 'free'} title="Freehand" className="p-1.5 sm:p-2"><Edit2 size={16} className="sm:w-[18px] sm:h-[18px]"/></IconButton>
           </div>
           <div className="h-px bg-gray-700 my-1"></div>
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Privacy</div>
-          <button onClick={() => {setTool('blur'); setActiveMenu(null)}} className={`flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-gray-700 w-full touch-manipulation ${tool === 'blur' ? 'text-purple-400' : 'text-gray-300'}`}>
+          <button onClick={(e) => { e.stopPropagation(); setTool('blur'); setActiveMenu(null); }} className={`flex items-center gap-2 sm:gap-3 p-2 rounded hover:bg-gray-700 w-full touch-manipulation ${tool === 'blur' ? 'text-purple-400' : 'text-gray-300'}`}>
             <EyeOff size={16} className="sm:w-[18px] sm:h-[18px]" /> <span className="text-xs sm:text-sm">Face Blur</span>
           </button>
       </div>
   );
 
   const StyleMenu = () => (
-      <div className="absolute bottom-16 left-2 sm:left-32 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-3 sm:p-4 w-56 sm:w-64 z-50 max-w-[calc(100vw-1rem)]">
+      <div className="fixed bottom-20 left-2 sm:left-32 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-3 sm:p-4 w-56 sm:w-64 z-[60] max-w-[calc(100vw-1rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="text-xs font-bold text-gray-500 mb-2 sm:mb-3 uppercase tracking-wider">Stroke Color</div>
           <div className="flex gap-2 mb-3 sm:mb-4 flex-wrap">
             {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ffffff'].map(c => (
-                <button key={c} onClick={() => setColor(c)} className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 transition-transform hover:scale-110 touch-manipulation ${color === c ? 'border-white scale-110 ring-2 ring-purple-500' : 'border-transparent'}`} style={{backgroundColor: c}} />
+                <button key={c} onClick={(e) => { e.stopPropagation(); setColor(c); }} className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 transition-transform hover:scale-110 touch-manipulation ${color === c ? 'border-white scale-110 ring-2 ring-purple-500' : 'border-transparent'}`} style={{backgroundColor: c}} />
             ))}
           </div>
           <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Thickness</div>
           <div className="flex items-center gap-2 sm:gap-3">
              <div className="h-1 bg-white rounded flex-shrink-0" style={{width: Math.max(2, lineWidth * 2) + 'px'}}></div>
-             <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => setLineWidth(parseInt(e.target.value))} className="flex-1 accent-purple-500 h-1 bg-gray-600 rounded-lg cursor-pointer" style={{ touchAction: 'none' }} />
+             <input type="range" min="1" max="10" value={lineWidth} onChange={(e) => { e.stopPropagation(); setLineWidth(parseInt(e.target.value)); }} className="flex-1 accent-purple-500 h-1 bg-gray-600 rounded-lg cursor-pointer" style={{ touchAction: 'none' }} />
           </div>
       </div>
   );
 
   const SpeedMenu = () => (
-      <div className="absolute bottom-16 right-2 sm:right-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 w-28 sm:w-32 z-50 max-w-[calc(100vw-1rem)]">
+      <div className="fixed bottom-20 right-2 sm:right-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 w-28 sm:w-32 z-[60] max-w-[calc(100vw-1rem)]" onClick={(e) => e.stopPropagation()}>
           <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">Playback Speed</div>
           {[0.25, 0.5, 0.75, 1.0, 1.5, 2.0].map(r => (
              <button 
                 key={r} 
-                onClick={() => { changeSpeed(r); setActiveMenu(null); }} 
+                onClick={(e) => { e.stopPropagation(); changeSpeed(r); setActiveMenu(null); }} 
                 className={`flex items-center justify-between px-2 sm:px-3 py-1.5 sm:py-2 rounded hover:bg-gray-700 text-xs sm:text-sm touch-manipulation ${speed === r ? 'bg-purple-900/50 text-purple-400 font-bold' : 'text-gray-300'}`}
              >
                 <span>{r}x</span>
@@ -664,11 +664,9 @@ export default function Swingstr() {
       )}
 
       {/* Popups */}
-      <div onClick={(e) => e.stopPropagation()}>
-         {activeMenu === 'tools' && <ToolMenu />}
-         {activeMenu === 'style' && <StyleMenu />}
-         {activeMenu === 'speed' && <SpeedMenu />}
-      </div>
+      {activeMenu === 'tools' && <ToolMenu />}
+      {activeMenu === 'style' && <StyleMenu />}
+      {activeMenu === 'speed' && <SpeedMenu />}
 
       <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-2 sm:px-4 shrink-0 z-20 overflow-hidden">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-shrink">
@@ -739,25 +737,25 @@ export default function Swingstr() {
          <div className="flex items-center justify-between px-2 sm:px-4 py-2 h-14 overflow-hidden">
              {/* Tool Groups */}
              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                <IconButton onClick={() => setTool('move')} active={tool === 'move'} title="Move/Pan" className="p-1.5 sm:p-2"><MousePointer2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
+                <IconButton onClick={(e) => { e.stopPropagation(); setTool('move'); }} active={tool === 'move'} title="Move/Pan" className="p-1.5 sm:p-2"><MousePointer2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
                 <div className="w-px h-6 sm:h-8 bg-gray-700 mx-0.5 sm:mx-1"></div>
                 
                 <MenuButton 
                     icon={PenTool} label="Draw" 
                     active={['line','angle','circle','rect','free','blur'].includes(tool)} 
                     isOpen={activeMenu === 'tools'}
-                    onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')} 
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === 'tools' ? null : 'tools'); }} 
                 />
                 
                 <MenuButton 
                     icon={Palette} label="Style" 
                     active={false} 
                     isOpen={activeMenu === 'style'}
-                    onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')} 
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === 'style' ? null : 'style'); }} 
                 />
 
                 <div className="w-px h-6 sm:h-8 bg-gray-700 mx-0.5 sm:mx-1"></div>
-                <IconButton onClick={clearShapes} title="Clear All" className="text-red-400 hover:bg-red-900/30 p-1.5 sm:p-2"><Trash2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
+                <IconButton onClick={(e) => { e.stopPropagation(); clearShapes(); }} title="Clear All" className="text-red-400 hover:bg-red-900/30 p-1.5 sm:p-2"><Trash2 size={18} className="sm:w-5 sm:h-5"/></IconButton>
              </div>
 
              {/* Playback */}
@@ -776,7 +774,7 @@ export default function Swingstr() {
                     icon={Gauge} label={`${speed}x`}
                     active={false}
                     isOpen={activeMenu === 'speed'}
-                    onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')} 
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === 'speed' ? null : 'speed'); }} 
                 />
 
                 <IconButton onClick={handleSnapshot} title="Snapshot" className="p-1.5 sm:p-2"><Camera size={18} className="sm:w-5 sm:h-5"/></IconButton>
