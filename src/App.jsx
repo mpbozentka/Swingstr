@@ -1,6 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useAuth } from './context/AuthContext';
 import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
+import Login from './components/Login';
+import {
+  getStudents,
+  addStudent,
+  updateStudent,
+  updateStudentNotes,
+  deleteStudent as deleteStudentApi,
+  uploadVideo as uploadVideoApi,
+} from './lib/supabaseServices';
 
 const STORAGE_KEY = 'swingstr_students';
 const DEFAULT_STUDENTS = [
@@ -15,6 +25,11 @@ const DEFAULT_STUDENTS = [
 ];
 
 export default function Swingstr() {
+  const { user, loading: authLoading, signIn, signUp, signOut, isConfigured } = useAuth();
+
+  const [authError, setAuthError] = useState('');
+  const [authLoadingAction, setAuthLoadingAction] = useState(false);
+
   const [view, setView] = useState('analyze');
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [layout, setLayout] = useState('single');
@@ -24,16 +39,15 @@ export default function Swingstr() {
 
   const [leftVideo, setLeftVideo] = useState(null);
   const [rightVideo, setRightVideo] = useState(null);
-  const [zooms, setZooms] = useState({ left: 1.0, right: 1.0 });
+  const leftVideoFileRef = useRef(null);
+  const rightVideoFileRef = useRef(null);
 
+  const [zooms, setZooms] = useState({ left: 1.0, right: 1.0 });
   const [globalTime, setGlobalTime] = useState(0);
   const [globalDuration, setGlobalDuration] = useState(0);
 
-  const [students, setStudents] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_STUDENTS;
-  });
-
+  const [students, setStudents] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [saveData, setSaveData] = useState({ studentId: '', label: '' });
   const [editingStudent, setEditingStudent] = useState(null);
 
@@ -46,28 +60,94 @@ export default function Swingstr() {
   const leftRef = useRef();
   const rightRef = useRef();
 
+  const isSupabaseMode = isConfigured && user;
+
+  // Load students: from Supabase when logged in, else from localStorage
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-  }, [students]);
+    if (authLoading) return;
+    if (isConfigured && user) {
+      setStudentsLoading(true);
+      getStudents(user.id)
+        .then(setStudents)
+        .catch((err) => {
+          console.error('Failed to load students', err);
+          setStudents([]);
+        })
+        .finally(() => setStudentsLoading(false));
+    } else if (!isConfigured) {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      setStudents(saved ? JSON.parse(saved) : DEFAULT_STUDENTS);
+    } else {
+      setStudents([]);
+    }
+  }, [isConfigured, user, authLoading]);
+
+  // Persist to localStorage only when not using Supabase
+  useEffect(() => {
+    if (!isConfigured && students.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+    }
+  }, [isConfigured, students]);
+
+  const handleAuthLogin = useCallback(async (email, password) => {
+    setAuthError('');
+    setAuthLoadingAction(true);
+    try {
+      await signIn(email, password);
+    } catch (err) {
+      setAuthError(err.message || 'Sign in failed');
+    } finally {
+      setAuthLoadingAction(false);
+    }
+  }, [signIn]);
+
+  const handleAuthRegister = useCallback(async (email, password) => {
+    setAuthError('');
+    setAuthLoadingAction(true);
+    try {
+      await signUp(email, password);
+      setAuthError('');
+    } catch (err) {
+      setAuthError(err.message || 'Sign up failed');
+    } finally {
+      setAuthLoadingAction(false);
+    }
+  }, [signUp]);
 
   const handleUpload = useCallback((side, e) => {
-    if (!e.target.files?.[0]) return;
-    const url = URL.createObjectURL(e.target.files[0]);
-    if (side === 'left') setLeftVideo(url);
-    else setRightVideo(url);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    if (side === 'left') {
+      setLeftVideo(url);
+      leftVideoFileRef.current = file;
+    } else {
+      setRightVideo(url);
+      rightVideoFileRef.current = file;
+    }
   }, []);
 
   const handleUrlUpload = useCallback((side) => {
     const url = prompt('Enter Direct Video URL (mp4/mov):');
     if (url) {
-      if (side === 'left') setLeftVideo(url);
-      else setRightVideo(url);
+      if (side === 'left') {
+        setLeftVideo(url);
+        leftVideoFileRef.current = null;
+      } else {
+        setRightVideo(url);
+        rightVideoFileRef.current = null;
+      }
     }
   }, []);
 
   const handleClearVideo = useCallback((side) => {
-    if (side === 'left') setLeftVideo(null);
-    else setRightVideo(null);
+    if (side === 'left') {
+      setLeftVideo(null);
+      leftVideoFileRef.current = null;
+    } else {
+      setRightVideo(null);
+      rightVideoFileRef.current = null;
+    }
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
@@ -155,8 +235,27 @@ export default function Swingstr() {
     }
   }, [sync, activeScreen]);
 
-  const saveToStudent = useCallback(() => {
+  const saveToStudent = useCallback(async () => {
     if (!saveData.studentId || !saveData.label) return;
+
+    if (isSupabaseMode) {
+      const file = activeScreen === 'left' ? leftVideoFileRef.current : rightVideoFileRef.current;
+      if (!file) {
+        alert('Save to student only works for videos you uploaded (not URLs). Upload a file first.');
+        return;
+      }
+      try {
+        await uploadVideoApi(user.id, saveData.studentId, file, saveData.label);
+        setShowSaveModal(false);
+        setSaveData({ studentId: '', label: '' });
+        alert('Saved!');
+      } catch (err) {
+        console.error(err);
+        alert(err.message || 'Failed to save video');
+      }
+      return;
+    }
+
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
     if (targetVideo) {
       const newVideo = {
@@ -167,7 +266,7 @@ export default function Swingstr() {
       };
       setStudents((prev) =>
         prev.map((s) =>
-          s.id === parseInt(saveData.studentId, 10)
+          String(s.id) === String(saveData.studentId)
             ? { ...s, videos: [...(s.videos || []), newVideo] }
             : s
         )
@@ -176,7 +275,7 @@ export default function Swingstr() {
       setSaveData({ studentId: '', label: '' });
       alert('Saved!');
     }
-  }, [saveData, activeScreen, leftVideo, rightVideo]);
+  }, [saveData, activeScreen, leftVideo, rightVideo, isSupabaseMode, user]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -196,6 +295,36 @@ export default function Swingstr() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [seek, togglePlay]);
 
+  // Supabase configured but not logged in: show login
+  if (isConfigured && !user && !authLoading) {
+    return (
+      <Login
+        onLogin={handleAuthLogin}
+        onRegister={handleAuthRegister}
+        error={authError}
+        loading={authLoadingAction}
+      />
+    );
+  }
+
+  // Auth still loading (and we need auth)
+  if (isConfigured && authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center text-gray-400">
+        Loading...
+      </div>
+    );
+  }
+
+  const persistApi = isSupabaseMode
+    ? {
+      addStudent: (userId, data) => addStudent(userId, data),
+      updateStudent: (id, data) => updateStudent(id, data),
+      updateNotes: (id, notes) => updateStudentNotes(id, notes),
+      deleteStudent: (id) => deleteStudentApi(id),
+    }
+    : undefined;
+
   if (view === 'library') {
     return (
       <StudentLibrary
@@ -204,6 +333,10 @@ export default function Swingstr() {
         editingStudent={editingStudent}
         setEditingStudent={setEditingStudent}
         onBack={() => setView('analyze')}
+        persistApi={persistApi}
+        userId={user?.id}
+        loading={studentsLoading}
+        onLogout={isSupabaseMode ? signOut : undefined}
       />
     );
   }
@@ -253,6 +386,8 @@ export default function Swingstr() {
       saveData={saveData}
       setSaveData={setSaveData}
       saveToStudent={saveToStudent}
+      user={user}
+      onLogout={isSupabaseMode ? signOut : undefined}
     />
   );
 }

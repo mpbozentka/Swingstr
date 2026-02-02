@@ -18,6 +18,7 @@ import {
   Palette,
   PenTool,
   Gauge,
+  LogOut,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
 import VideoCanvas from './VideoCanvas';
@@ -70,6 +71,8 @@ export default function AnalyzerView({
   saveData,
   setSaveData,
   saveToStudent,
+  user,
+  onLogout,
 }) {
   return (
     <div
@@ -124,6 +127,15 @@ export default function AnalyzerView({
           >
             <Users size={12} /> Student Library
           </button>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="text-xs text-gray-400 hover:text-white flex items-center gap-1"
+              title="Sign out"
+            >
+              <LogOut size={12} /> Sign out
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className="flex bg-gray-800 rounded-lg p-1">
