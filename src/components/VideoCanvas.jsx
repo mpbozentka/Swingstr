@@ -1,0 +1,372 @@
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
+import { Upload, X, Globe } from 'lucide-react';
+import { renderShape } from '../utils/shapeRenderer';
+
+const VideoCanvas = forwardRef(
+  (
+    {
+      src,
+      tool,
+      color,
+      lineWidth,
+      playbackRate,
+      zoomLevel,
+      isActive,
+      onActivate,
+      onUpload,
+      onUrlUpload,
+      onClear,
+      isSynced,
+      onScrub,
+      onTimeUpdate,
+    },
+    ref
+  ) => {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const containerRef = useRef(null);
+
+    const [panX, setPanX] = useState(0);
+    const [panY, setPanY] = useState(0);
+    const isPanning = useRef(false);
+    const [shapes, setShapes] = useState([]);
+    const [currentShape, setCurrentShape] = useState(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [points, setPoints] = useState([]);
+
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+
+    const takeSnapshot = useCallback(async () => {
+      if (!videoRef.current || !canvasRef.current || !containerRef.current)
+        return null;
+      const vid = videoRef.current;
+      if (vid.videoWidth === 0) return null;
+
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = vid.videoWidth;
+      tempCanvas.height = vid.videoHeight;
+      const ctx = tempCanvas.getContext('2d');
+
+      try {
+        ctx.drawImage(vid, 0, 0, tempCanvas.width, tempCanvas.height);
+      } catch (e) {
+        console.warn('Snapshot: CORS or drawImage failed', e.message);
+        return null;
+      }
+
+      const scaleX = vid.videoWidth / containerRef.current.clientWidth;
+      const scaleY = vid.videoHeight / containerRef.current.clientHeight;
+      const videoRect = { x: 0, y: 0, w: tempCanvas.width, h: tempCanvas.height };
+
+      ctx.save();
+      ctx.scale(scaleX, scaleY);
+      shapes.forEach((s) => {
+        renderShape(ctx, s, {
+          zoomLevel,
+          video: vid,
+          videoRect,
+          blurPx: 15,
+        });
+      });
+      ctx.restore();
+
+      return tempCanvas.toDataURL('image/jpeg', 0.9);
+    }, [shapes, zoomLevel]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        play: () => videoRef.current?.play().catch(() => { }),
+        pause: () => videoRef.current?.pause(),
+        seekRelative: (s) => {
+          if (videoRef.current) videoRef.current.currentTime += s;
+        },
+        seekTo: (t) => {
+          if (videoRef.current) videoRef.current.currentTime = t;
+        },
+        setPlaybackRate: (r) => {
+          if (videoRef.current) videoRef.current.playbackRate = r;
+        },
+        clearShapes: () => setShapes([]),
+        getSnapshot: takeSnapshot,
+        hasVideo: !!src,
+        get currentTime() {
+          return videoRef.current?.currentTime ?? 0;
+        },
+        get duration() {
+          return videoRef.current?.duration ?? 0;
+        },
+      }),
+      [takeSnapshot, src]
+    );
+
+    useEffect(() => {
+      if (videoRef.current) videoRef.current.playbackRate = playbackRate;
+    }, [playbackRate]);
+    useEffect(() => {
+      if (zoomLevel === 1.0) {
+        setPanX(0);
+        setPanY(0);
+      }
+    }, [zoomLevel]);
+
+    const handleTimeUpdate = () => {
+      if (videoRef.current) {
+        setCurrentTime(videoRef.current.currentTime);
+        if (isActive && onTimeUpdate) {
+          onTimeUpdate(videoRef.current.currentTime, videoRef.current.duration);
+        }
+      }
+    };
+    const handleLoadedMetadata = () => {
+      if (videoRef.current) setDuration(videoRef.current.duration);
+    };
+
+    const draw = useCallback(() => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      const vid = videoRef.current;
+      if (!canvas || !container) return;
+
+      if (
+        canvas.width !== container.clientWidth ||
+        canvas.height !== container.clientHeight
+      ) {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      let vDrawX = 0,
+        vDrawY = 0,
+        vDrawW = canvas.width,
+        vDrawH = canvas.height;
+      if (vid?.videoWidth) {
+        const rVid = vid.videoWidth / vid.videoHeight;
+        const rCan = canvas.width / canvas.height;
+        if (rCan > rVid) {
+          vDrawH = canvas.height;
+          vDrawW = vDrawH * rVid;
+          vDrawX = (canvas.width - vDrawW) / 2;
+        } else {
+          vDrawW = canvas.width;
+          vDrawH = vDrawW / rVid;
+          vDrawY = (canvas.height - vDrawH) / 2;
+        }
+      }
+      const videoRect = { x: vDrawX, y: vDrawY, w: vDrawW, h: vDrawH };
+
+      ctx.save();
+      const centerX = container.clientWidth / 2;
+      const centerY = container.clientHeight / 2;
+      ctx.translate(panX, panY);
+      ctx.translate(centerX, centerY);
+      ctx.scale(zoomLevel, zoomLevel);
+      ctx.translate(-centerX, -centerY);
+
+      shapes.forEach((shape) =>
+        renderShape(ctx, shape, {
+          zoomLevel,
+          video: vid,
+          videoRect,
+        })
+      );
+      if (currentShape) {
+        renderShape(ctx, currentShape, {
+          zoomLevel,
+          video: vid,
+          videoRect,
+        });
+      }
+      if (tool === 'angle' && points.length > 0) {
+        ctx.fillStyle = color;
+        points.forEach((p) => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 4 / zoomLevel, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+      ctx.restore();
+    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY]);
+
+    useEffect(() => {
+      const anim = requestAnimationFrame(draw);
+      return () => cancelAnimationFrame(anim);
+    }, [draw]);
+
+    const getPos = (e) => {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const clientX = e.clientX - rect.left;
+      const clientY = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      return {
+        x: (clientX - panX - centerX) / zoomLevel + centerX,
+        y: (clientY - panY - centerY) / zoomLevel + centerY,
+      };
+    };
+
+    const handleMouseDown = (e) => {
+      onActivate();
+      if (!src) return;
+      if (tool === 'move' && zoomLevel > 1.0) {
+        isPanning.current = true;
+        return;
+      }
+      if (tool === 'move') return;
+      const pos = getPos(e);
+      if (tool === 'angle') {
+        const newPoints = [...points, pos];
+        setPoints(newPoints);
+        if (newPoints.length === 3) {
+          setShapes([
+            ...shapes,
+            {
+              type: 'angle',
+              p1: newPoints[0],
+              p2: newPoints[1],
+              p3: newPoints[2],
+              color,
+              width: lineWidth,
+            },
+          ]);
+          setPoints([]);
+        }
+        return;
+      }
+      setIsDrawing(true);
+      if (tool === 'free') {
+        setCurrentShape({
+          type: 'free',
+          points: [pos],
+          color,
+          width: lineWidth,
+        });
+      } else {
+        setCurrentShape({
+          type: tool,
+          start: pos,
+          end: pos,
+          color,
+          width: lineWidth,
+        });
+      }
+    };
+
+    const handleMouseMove = (e) => {
+      if (isPanning.current) {
+        setPanX((prev) => prev + e.movementX);
+        setPanY((prev) => prev + e.movementY);
+        return;
+      }
+      if (!isDrawing) return;
+      const pos = getPos(e);
+      if (tool === 'free') {
+        setCurrentShape((prev) => ({
+          ...prev,
+          points: [...prev.points, pos],
+        }));
+      } else {
+        setCurrentShape((prev) => ({ ...prev, end: pos }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      isPanning.current = false;
+      if (!isDrawing) return;
+      setIsDrawing(false);
+      if (currentShape) {
+        setShapes([...shapes, currentShape]);
+        setCurrentShape(null);
+      }
+    };
+
+    return (
+      <div
+        ref={containerRef}
+        className={`relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-black ${isActive ? 'ring-2 ring-purple-500 z-10' : 'border-r border-gray-800'
+          }`}
+      >
+        <div
+          className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair"
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onMouseDown={handleMouseDown}
+        >
+          {!src && (
+            <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
+              <label className="cursor-pointer hover:text-purple-400 transition-colors flex flex-col items-center">
+                <Upload size={48} className="mb-2 opacity-50" />
+                <p className="text-lg font-medium">Upload File</p>
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={onUpload}
+                />
+              </label>
+              <div className="flex items-center gap-2 text-sm opacity-50">
+                <span>or</span>
+              </div>
+              <button
+                onClick={onUrlUpload}
+                className="flex items-center gap-2 hover:text-purple-400 transition-colors"
+              >
+                <Globe size={24} />
+                <span className="font-medium">Load from URL</span>
+              </button>
+            </div>
+          )}
+          {src && (
+            <>
+              <video
+                ref={videoRef}
+                src={src}
+                crossOrigin="anonymous"
+                style={{
+                  transform: `translate(${panX}px, ${panY}px) scale(${zoomLevel})`,
+                }}
+                className="w-full h-full object-contain pointer-events-none"
+                playsInline
+                loop
+                muted
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+              />
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full"
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClear();
+                }}
+                className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-red-600 text-white rounded-full transition-colors"
+                title="Clear Video"
+              >
+                <X size={20} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+
+VideoCanvas.displayName = 'VideoCanvas';
+
+export default VideoCanvas;
