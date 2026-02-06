@@ -258,7 +258,7 @@ export default function AnalyzerView({
             <MenuButton
               icon={PenTool}
               label="Drawing"
-              active={['line', 'angle', 'circle', 'rect', 'free', 'blur'].includes(tool)}
+              active={['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'].includes(tool)}
               isOpen={activeMenu === 'tools'}
               onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')}
             />

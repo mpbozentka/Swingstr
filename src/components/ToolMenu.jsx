@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Circle as CircleIcon, Square, Edit2, EyeOff } from 'lucide-react';
+import { Minus, Circle as CircleIcon, Square, Edit2, EyeOff, MousePointer2 } from 'lucide-react';
 import { IconButton } from './ui/Button';
 
 export default function ToolMenu({ tool, setTool, onClose }) {
@@ -13,6 +13,13 @@ export default function ToolMenu({ tool, setTool, onClose }) {
         Drawing
       </div>
       <div className="grid grid-cols-4 gap-1">
+        <IconButton
+          onClick={() => setAndClose('select')}
+          active={tool === 'select'}
+          title="Select / Edit"
+        >
+          <MousePointer2 size={18} />
+        </IconButton>
         <IconButton
           onClick={() => setAndClose('line')}
           active={tool === 'line'}

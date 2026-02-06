@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { Upload, X, Globe } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
+import { getHandlesForShape, hitTestHandle, hitTestShape, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
   (
@@ -41,6 +42,8 @@ const VideoCanvas = forwardRef(
     const [currentShape, setCurrentShape] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [points, setPoints] = useState([]);
+    const [selectedIndex, setSelectedIndex] = useState(-1);
+    const draggingHandle = useRef(null);
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -96,7 +99,11 @@ const VideoCanvas = forwardRef(
         setPlaybackRate: (r) => {
           if (videoRef.current) videoRef.current.playbackRate = r;
         },
-        clearShapes: () => setShapes([]),
+        clearShapes: () => {
+          setShapes([]);
+          setSelectedIndex(-1);
+          draggingHandle.current = null;
+        },
         getSnapshot: takeSnapshot,
         hasVideo: !!src,
         get currentTime() {
@@ -198,8 +205,21 @@ const VideoCanvas = forwardRef(
           ctx.fill();
         });
       }
+      if (selectedIndex >= 0 && selectedIndex < shapes.length) {
+        const sel = shapes[selectedIndex];
+        const handles = getHandlesForShape(sel, zoomLevel);
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2 / zoomLevel;
+        handles.forEach((h) => {
+          ctx.beginPath();
+          ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+      }
       ctx.restore();
-    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY]);
+    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex]);
 
     useEffect(() => {
       const anim = requestAnimationFrame(draw);
@@ -243,23 +263,44 @@ const VideoCanvas = forwardRef(
         return;
       }
       if (tool === 'move') return;
-      if (videoRef.current) videoRef.current.pause();
       const pos = getPos(e);
+      if (selectedIndex >= 0 && selectedIndex < shapes.length) {
+        const handleId = hitTestHandle(pos, shapes[selectedIndex], zoomLevel);
+        if (handleId) {
+          draggingHandle.current = { shapeIndex: selectedIndex, handleId };
+          if (videoRef.current) videoRef.current.pause();
+          return;
+        }
+        const idx = findShapeAtPos(pos, shapes, zoomLevel);
+        if (idx >= 0) {
+          setSelectedIndex(idx);
+          return;
+        }
+        setSelectedIndex(-1);
+      }
+      if (tool === 'select') {
+        const idx = findShapeAtPos(pos, shapes, zoomLevel);
+        setSelectedIndex(idx);
+        return;
+      }
+      if (videoRef.current) videoRef.current.pause();
       if (tool === 'angle') {
         const newPoints = [...points, pos];
         setPoints(newPoints);
         if (newPoints.length === 3) {
-          setShapes([
-            ...shapes,
-            {
-              type: 'angle',
-              p1: newPoints[0],
-              p2: newPoints[1],
-              p3: newPoints[2],
-              color,
-              width: lineWidth,
-            },
-          ]);
+          const newShape = {
+            type: 'angle',
+            p1: newPoints[0],
+            p2: newPoints[1],
+            p3: newPoints[2],
+            color,
+            width: lineWidth,
+          };
+          setShapes((prev) => {
+            const next = [...prev, newShape];
+            setSelectedIndex(next.length - 1);
+            return next;
+          });
           setPoints([]);
         }
         return;
@@ -294,6 +335,19 @@ const VideoCanvas = forwardRef(
         setPanY((prev) => prev + dy);
         return;
       }
+      const dh = draggingHandle.current;
+      if (dh !== null) {
+        const pos = getPos(e);
+        setShapes((prev) => {
+          const next = [...prev];
+          const shape = next[dh.shapeIndex];
+          if (shape) {
+            next[dh.shapeIndex] = updateShapeWithHandle(shape, dh.handleId, pos);
+          }
+          return next;
+        });
+        return;
+      }
       if (!isDrawing) return;
       const pos = getPos(e);
       if (tool === 'free') {
@@ -308,10 +362,18 @@ const VideoCanvas = forwardRef(
 
     const handlePointerUp = () => {
       isPanning.current = false;
+      if (draggingHandle.current !== null) {
+        draggingHandle.current = null;
+        return;
+      }
       if (!isDrawing) return;
       setIsDrawing(false);
       if (currentShape) {
-        setShapes([...shapes, currentShape]);
+        setShapes((prev) => {
+          const next = [...prev, currentShape];
+          setSelectedIndex(next.length - 1);
+          return next;
+        });
         setCurrentShape(null);
       }
     };
