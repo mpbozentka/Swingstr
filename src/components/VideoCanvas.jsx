@@ -36,6 +36,7 @@ const VideoCanvas = forwardRef(
     const [panX, setPanX] = useState(0);
     const [panY, setPanY] = useState(0);
     const isPanning = useRef(false);
+    const lastPointerPos = useRef({ x: 0, y: 0 });
     const [shapes, setShapes] = useState([]);
     const [currentShape, setCurrentShape] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -205,26 +206,44 @@ const VideoCanvas = forwardRef(
       return () => cancelAnimationFrame(anim);
     }, [draw]);
 
+    const getEventCoords = (e) => {
+      if (e.touches?.[0]) {
+        return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+      }
+      if (e.changedTouches?.[0]) {
+        return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+      }
+      return { clientX: e.clientX, clientY: e.clientY };
+    };
+
     const getPos = (e) => {
       const rect = canvasRef.current.getBoundingClientRect();
-      const clientX = e.clientX - rect.left;
-      const clientY = e.clientY - rect.top;
+      const { clientX, clientY } = getEventCoords(e);
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
       return {
-        x: (clientX - panX - centerX) / zoomLevel + centerX,
-        y: (clientY - panY - centerY) / zoomLevel + centerY,
+        x: (x - panX - centerX) / zoomLevel + centerX,
+        y: (y - panY - centerY) / zoomLevel + centerY,
       };
     };
 
-    const handleMouseDown = (e) => {
+    const handlePointerDown = (e) => {
+      if (e.pointerType === 'touch') {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
       onActivate();
       if (!src) return;
       if (tool === 'move' && zoomLevel > 1.0) {
         isPanning.current = true;
+        const { clientX, clientY } = getEventCoords(e);
+        lastPointerPos.current = { x: clientX, y: clientY };
         return;
       }
       if (tool === 'move') return;
+      if (videoRef.current) videoRef.current.pause();
       const pos = getPos(e);
       if (tool === 'angle') {
         const newPoints = [...points, pos];
@@ -264,10 +283,15 @@ const VideoCanvas = forwardRef(
       }
     };
 
-    const handleMouseMove = (e) => {
+    const handlePointerMove = (e) => {
+      if (e.pointerType === 'touch') e.preventDefault();
       if (isPanning.current) {
-        setPanX((prev) => prev + e.movementX);
-        setPanY((prev) => prev + e.movementY);
+        const { clientX, clientY } = getEventCoords(e);
+        const dx = (e.movementX != null ? e.movementX : clientX - lastPointerPos.current.x);
+        const dy = (e.movementY != null ? e.movementY : clientY - lastPointerPos.current.y);
+        lastPointerPos.current = { x: clientX, y: clientY };
+        setPanX((prev) => prev + dx);
+        setPanY((prev) => prev + dy);
         return;
       }
       if (!isDrawing) return;
@@ -282,7 +306,7 @@ const VideoCanvas = forwardRef(
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       isPanning.current = false;
       if (!isDrawing) return;
       setIsDrawing(false);
@@ -300,10 +324,12 @@ const VideoCanvas = forwardRef(
       >
         <div
           className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair"
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          onMouseDown={handleMouseDown}
+          style={{ touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
           {!src && (
             <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-4">
