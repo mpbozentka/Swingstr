@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { 
-  Play, Pause, Upload, Trash2, MousePointer2, Minus, 
-  Circle as CircleIcon, Square, Edit2, Video, 
+import {
+  Play, Pause, Upload, Trash2, MousePointer2, Minus,
+  Circle as CircleIcon, Square, Edit2, Video,
   ChevronRight, ChevronLeft, ZoomIn, ZoomOut,
   SplitSquareHorizontal, Link as LinkIcon, Link2Off, Maximize,
   Camera, Users, Save, X, UserPlus, FileVideo, EyeOff, Globe,
-  Pencil, StickyNote, Palette, PenTool, Gauge
+  Pencil, StickyNote, Palette, PenTool, Gauge, Search, FolderOpen, BookOpen
 } from 'lucide-react';
+import { loadStudents, saveStudents, addSwing, addLesson, updateSwingMarkers } from './data/store';
+import { VIEW_TAGS, COLOR_LABELS } from './data/constants';
 
 // --- UI Components ---
 
@@ -312,19 +314,18 @@ export default function Swingstr() {
   const [globalTime, setGlobalTime] = useState(0);
   const [globalDuration, setGlobalDuration] = useState(0);
 
-  // Load students from LocalStorage or default
-  const [students, setStudents] = useState(() => {
-      const saved = localStorage.getItem('swingstr_students');
-      return saved ? JSON.parse(saved) : [ { id: 1, name: "Demo Student", email: "demo@golf.com", phone: "555-0123", videos: [], notes: "Working on takeaway path." } ];
+  const [students, setStudents] = useState(() => loadStudents());
+  useEffect(() => { saveStudents(students); }, [students]);
+
+  const [saveData, setSaveData] = useState({
+    studentId: '', lessonId: '', label: '', view_tag: '', color_label: '', high_speed: false
   });
-
-  // Auto-Save Effect
-  useEffect(() => {
-      localStorage.setItem('swingstr_students', JSON.stringify(students));
-  }, [students]);
-
-  const [saveData, setSaveData] = useState({ studentId: '', label: '' });
   const [editingStudent, setEditingStudent] = useState(null);
+  const [libraryFilter, setLibraryFilter] = useState({ search: '', viewTag: '' });
+  const [selectedSwing, setSelectedSwing] = useState(null);
+  const [showLoadLibrary, setShowLoadLibrary] = useState(false);
+  const [showExportTwoPanel, setShowExportTwoPanel] = useState(false);
+  const [exportTwoPanelNotes, setExportTwoPanelNotes] = useState('');
 
   // Tools & Menus
   const [tool, setTool] = useState('move');
@@ -377,9 +378,48 @@ export default function Swingstr() {
   const handleSnapshot = async () => {
     const target = activeScreen === 'left' ? leftRef : rightRef;
     if (target.current) {
-        const dataUrl = await target.current.getSnapshot();
-        if (dataUrl) { const link = document.createElement('a'); link.download = `swingstr-${Date.now()}.jpg`; link.href = dataUrl; link.click(); }
+      const dataUrl = await target.current.getSnapshot();
+      if (dataUrl) { const link = document.createElement('a'); link.download = `swingstr-${Date.now()}.jpg`; link.href = dataUrl; link.click(); }
     }
+  };
+
+  const handleExportTwoPanel = async () => {
+    const leftImg = leftRef.current ? await leftRef.current.getSnapshot() : null;
+    const rightImg = rightRef.current ? await rightRef.current.getSnapshot() : null;
+    if (!leftImg && !rightImg) return;
+    const img1 = leftImg || rightImg;
+    const img2 = leftImg && rightImg ? rightImg : null;
+    const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+    const [i1, i2] = await Promise.all([loadImg(img1), img2 ? loadImg(img2) : Promise.resolve(null)]);
+    const w1 = i1.naturalWidth;
+    const h1 = i1.naturalHeight;
+    const w2 = i2 ? i2.naturalWidth : 0;
+    const h2 = i2 ? i2.naturalHeight : 0;
+    const panelW = Math.max(w1, w2) || 400;
+    const panelH = Math.max(h1, h2) || 300;
+    const notesH = exportTwoPanelNotes ? 80 : 0;
+    const totalW = i2 ? panelW * 2 : panelW;
+    const totalH = panelH + notesH;
+    const canvas = document.createElement('canvas');
+    canvas.width = totalW;
+    canvas.height = totalH;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, totalW, totalH);
+    ctx.drawImage(i1, 0, 0, w1, h1, 0, 0, panelW, panelH);
+    if (i2) ctx.drawImage(i2, 0, 0, w2, h2, panelW, 0, panelW, panelH);
+    if (exportTwoPanelNotes) {
+      ctx.fillStyle = '#e5e7eb';
+      ctx.font = '14px sans-serif';
+      const lines = exportTwoPanelNotes.split('\n').slice(0, 5);
+      lines.forEach((line, i) => { ctx.fillText(line, 10, panelH + 20 + i * 18); });
+    }
+    const link = document.createElement('a');
+    link.download = `swingstr-twopanel-${Date.now()}.jpg`;
+    link.href = canvas.toDataURL('image/jpeg', 0.9);
+    link.click();
+    setShowExportTwoPanel(false);
+    setExportTwoPanelNotes('');
   };
 
   // --- Sync Logic ---
@@ -405,37 +445,85 @@ export default function Swingstr() {
       }
   };
 
-  // --- Student & Save Logic ---
   const openSaveModal = () => setShowSaveModal(true);
   const saveToStudent = () => {
-    if (!saveData.studentId || !saveData.label) return;
+    const studentId = saveData.studentId ? parseInt(saveData.studentId, 10) : null;
+    let lessonId = saveData.lessonId ? parseInt(saveData.lessonId, 10) : null;
+    if (!studentId || !saveData.label) return;
+    const student = students.find((s) => s.id === studentId);
+    if (!student) return;
+    if (!lessonId && student.lessons?.length) lessonId = student.lessons[0].id;
+    if (!lessonId) {
+      addLesson(studentId, students, setStudents);
+      const next = students.map((s) => (s.id === studentId ? { ...s, lessons: [...(s.lessons || []), { id: Date.now(), lesson_date: new Date().toISOString().slice(0, 10), notes: '', swings: [] }] } : s));
+      setStudents(next);
+      lessonId = next.find((s) => s.id === studentId).lessons.slice(-1)[0].id;
+    }
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
     if (targetVideo) {
-        const newVideo = { id: Date.now(), label: saveData.label, date: new Date().toLocaleDateString(), url: targetVideo };
-        setStudents(prev => prev.map(s => s.id === parseInt(saveData.studentId) ? { ...s, videos: [...(s.videos || []), newVideo] } : s));
-        setShowSaveModal(false);
-        setSaveData({ studentId: '', label: '' });
-        alert("Saved!");
+      addSwing(lessonId, studentId, {
+        label: saveData.label,
+        url: targetVideo,
+        view_tag: saveData.view_tag,
+        color_label: saveData.color_label,
+        high_speed: saveData.high_speed,
+        markers: [],
+      }, students, setStudents);
+      setShowSaveModal(false);
+      setSaveData({ studentId: '', lessonId: '', label: '', view_tag: '', color_label: '', high_speed: false });
+      alert('Saved!');
     }
   };
-  const deleteStudent = (id) => { if(confirm("Delete student?")) setStudents(students.filter(s => s.id !== id)); };
+  const deleteStudent = (id) => { if (confirm('Delete student?')) setStudents(students.filter((s) => s.id !== id)); };
   const saveEditedStudent = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const updated = { ...editingStudent, name: formData.get('name'), email: formData.get('email'), phone: formData.get('phone') };
-    setStudents(students.map(s => s.id === editingStudent.id ? updated : s));
+    const updated = {
+      ...editingStudent,
+      name: formData.get('name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      handicap: formData.get('handicap') ?? editingStudent.handicap,
+      goals: formData.get('goals') ?? editingStudent.goals,
+      distances: formData.get('distances') ?? editingStudent.distances,
+      physical_limits: formData.get('physical_limits') ?? editingStudent.physical_limits,
+    };
+    setStudents(students.map((s) => (s.id === editingStudent.id ? updated : s)));
     setEditingStudent(null);
   };
-  const handleUpdateNotes = (id, text) => { setStudents(students.map(s => s.id === id ? { ...s, notes: text } : s)); };
+  const handleUpdateNotes = (id, text) => { setStudents(students.map((s) => (s.id === id ? { ...s, notes: text } : s))); };
+  const setMarker = (num) => {
+    const t = globalTime;
+    if (!selectedSwing) return;
+    const markers = [...(selectedSwing.markers || [])].filter((m) => m.number !== num);
+    markers.push({ number: num, time_seconds: t });
+    markers.sort((a, b) => a.number - b.number);
+    updateSwingMarkers(selectedSwing.studentId, selectedSwing.lessonId, selectedSwing.swing.id, markers, students, setStudents);
+    setSelectedSwing((prev) => (prev ? { ...prev, markers } : null));
+  };
+  const goToMarker = (timeSeconds) => {
+    if (sync) { leftRef.current?.seekTo(timeSeconds); rightRef.current?.seekTo(timeSeconds); }
+    else { const ref = activeScreen === 'left' ? leftRef : rightRef; ref.current?.seekTo(timeSeconds); }
+  };
+  const frameStep = (delta) => {
+    const hasVideo = activeScreen === 'left' ? leftVideo : rightVideo;
+    if (!hasVideo) return;
+    const frame = 1 / 30;
+    const next = Math.max(0, Math.min(globalDuration || 0, globalTime + delta * frame));
+    if (sync) { leftRef.current?.seekTo(next); rightRef.current?.seekTo(next); }
+    else { const ref = activeScreen === 'left' ? leftRef : rightRef; ref.current?.seekTo(next); }
+    setGlobalTime(next);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-      if (e.key === 'ArrowLeft') { e.preventDefault(); seek(-0.05); } 
-      else if (e.key === 'ArrowRight') { e.preventDefault(); seek(0.05); } 
+      if (e.key === 'ArrowLeft') { e.preventDefault(); frameStep(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); frameStep(1); }
       else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
     };
-    window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sync, activeScreen, isPlaying]); 
 
   // --- Popup Menu Content ---
@@ -490,67 +578,144 @@ export default function Swingstr() {
   );
 
 
+  const allSwings = students.flatMap((s) =>
+    (s.lessons || []).flatMap((l) =>
+      (l.swings || []).map((sw) => ({ student: s, lesson: l, swing: sw }))
+    )
+  );
+  const filteredSwings = allSwings.filter(({ student, swing }) => {
+    const matchSearch = !libraryFilter.search || [student.name, swing.label].some((x) => x?.toLowerCase().includes(libraryFilter.search.toLowerCase()));
+    const matchView = !libraryFilter.viewTag || swing.view_tag === libraryFilter.viewTag;
+    return matchSearch && matchView;
+  });
+
   if (view === 'library') {
     return (
         <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative">
             {editingStudent && (
                 <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center">
-                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
+                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <h3 className="font-bold text-lg mb-4">Edit Profile</h3>
                         <form onSubmit={saveEditedStudent} className="space-y-4">
                             <input name="name" defaultValue={editingStudent.name} placeholder="Name" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
                             <input name="email" defaultValue={editingStudent.email} placeholder="Email" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
                             <input name="phone" defaultValue={editingStudent.phone} placeholder="Phone" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="handicap" defaultValue={editingStudent.handicap} placeholder="Handicap" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="goals" defaultValue={editingStudent.goals} placeholder="Goals" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="distances" defaultValue={editingStudent.distances} placeholder="Distances" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
+                            <input name="physical_limits" defaultValue={editingStudent.physical_limits} placeholder="Physical limitations" className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2" />
                             <button type="submit" className="w-full bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Save Changes</button>
                         </form>
-                        <button onClick={() => setEditingStudent(null)} className="mt-2 w-full text-gray-400 hover:text-white text-sm">Cancel</button>
+                        <button type="button" onClick={() => setEditingStudent(null)} className="mt-2 w-full text-gray-400 hover:text-white text-sm">Cancel</button>
                     </div>
                 </div>
             )}
             <header className="h-16 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-800">
                 <div className="flex items-center gap-3">
-                    <img src="/swingstr-logo.jpg" alt="Swingstr" className="h-10 w-10 rounded-full border-2 border-purple-500 object-cover" onError={(e) => { e.target.style.display='none'; }} />
+                    <img src="/swingstr-logo.jpg" alt="Swingstr" className="h-10 w-10 rounded-full border-2 border-purple-500 object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                     <h1 className="text-xl font-bold tracking-tight">Student Library</h1>
                 </div>
                 <Button onClick={() => setView('analyze')}>Back to Analyzer</Button>
             </header>
+            <div className="p-4 border-b border-gray-700 flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <Search size={18} className="text-gray-400" />
+                    <input type="text" placeholder="Fast Filter: name or label..." className="bg-gray-900 border border-gray-600 rounded px-3 py-2 flex-1 text-sm" value={libraryFilter.search} onChange={(e) => setLibraryFilter((f) => ({ ...f, search: e.target.value }))} />
+                </div>
+                <select className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm" value={libraryFilter.viewTag} onChange={(e) => setLibraryFilter((f) => ({ ...f, viewTag: e.target.value }))}>
+                    <option value="">All views</option>
+                    {VIEW_TAGS.filter((t) => t.value).map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+            </div>
             <div className="flex-1 overflow-auto p-8">
                 <div className="max-w-5xl mx-auto">
                     <div className="bg-gray-800 p-6 rounded-xl mb-8 border border-gray-700">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><UserPlus size={20}/> Add New Student</h2>
+                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><UserPlus size={20} /> Add New Student</h2>
                         <form onSubmit={(e) => {
                             e.preventDefault();
                             const formData = new FormData(e.target);
-                            const newStudent = { id: Date.now(), name: formData.get('name'), email: formData.get('email'), phone: formData.get('phone'), videos: [], notes: "" };
+                            const newStudent = {
+                                id: Date.now(),
+                                name: formData.get('name'),
+                                email: formData.get('email'),
+                                phone: formData.get('phone'),
+                                notes: '',
+                                handicap: '', goals: '', distances: '', physical_limits: '',
+                                lessons: [{ id: Date.now() + 1, lesson_date: new Date().toISOString().slice(0, 10), notes: '', swings: [] }],
+                            };
                             setStudents([...students, newStudent]);
                             e.target.reset();
-                        }} className="flex gap-4">
-                            <input name="name" placeholder="Name" required className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1" />
-                            <input name="email" placeholder="Email" className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1" />
-                            <input name="phone" placeholder="Phone" className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1" />
+                        }} className="flex gap-4 flex-wrap">
+                            <input name="name" placeholder="Name" required className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-[120px]" />
+                            <input name="email" placeholder="Email" className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-[120px]" />
+                            <input name="phone" placeholder="Phone" className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-[120px]" />
                             <button type="submit" className="bg-purple-600 px-6 py-2 rounded hover:bg-purple-500 font-bold">Add</button>
                         </form>
                     </div>
                     <div className="grid gap-6">
-                        {students.map(student => (
+                        {students.map((student) => (
                             <div key={student.id} className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 flex flex-col">
                                 <div className="p-4 bg-gray-700/50 flex justify-between items-start">
                                     <div>
                                         <h3 className="font-bold text-lg">{student.name}</h3>
-                                        <p className="text-sm text-gray-400">{student.email} • {student.phone}</p>
+                                        <p className="text-sm text-gray-400">{student.email} {student.phone ? `• ${student.phone}` : ''}</p>
+                                        {(student.handicap || student.goals) && <p className="text-xs text-gray-500 mt-1">HCP: {student.handicap || '–'} | Goals: {student.goals || '–'}</p>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => setEditingStudent(student)} className="p-2 bg-gray-600 hover:bg-gray-500 rounded"><Pencil size={16} /></button>
-                                        <button onClick={() => deleteStudent(student.id)} className="p-2 bg-red-900/50 hover:bg-red-600 rounded text-red-200"><Trash2 size={16} /></button>
+                                        <button type="button" onClick={() => setEditingStudent(student)} className="p-2 bg-gray-600 hover:bg-gray-500 rounded"><Pencil size={16} /></button>
+                                        <button type="button" onClick={() => deleteStudent(student.id)} className="p-2 bg-red-900/50 hover:bg-red-600 rounded text-red-200"><Trash2 size={16} /></button>
                                     </div>
                                 </div>
-                                <div className="px-4 pt-4">
-                                    <div className="flex items-center gap-2 mb-2 text-sm text-gray-400"><StickyNote size={14} /> <span>Coach's Notes</span></div>
-                                    <textarea className="w-full bg-gray-900 border border-gray-700 rounded p-3 text-sm text-gray-300 focus:border-purple-500 outline-none transition-colors resize-none h-24" placeholder="Add notes..." value={student.notes || ''} onChange={(e) => handleUpdateNotes(student.id, e.target.value)} />
+                                <div className="px-4 pt-2">
+                                    <div className="flex items-center gap-2 mb-2 text-sm text-gray-400"><StickyNote size={14} /> <span>Coach&apos;s Notes</span></div>
+                                    <textarea className="w-full bg-gray-900 border border-gray-700 rounded p-3 text-sm text-gray-300 focus:border-purple-500 outline-none resize-none h-20" placeholder="Add notes..." value={student.notes || ''} onChange={(e) => handleUpdateNotes(student.id, e.target.value)} />
+                                </div>
+                                <div className="p-4 pt-2 border-t border-gray-700">
+                                    <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-1"><BookOpen size={14} /> Lessons &amp; swings</h4>
+                                    {(student.lessons || []).length === 0 ? (
+                                        <p className="text-sm text-gray-500">No lessons yet. Save a video from the Analyzer.</p>
+                                    ) : (
+                                        <ul className="space-y-3">
+                                            {(student.lessons || []).map((lesson) => (
+                                                <li key={lesson.id} className="bg-gray-900/50 rounded-lg p-3">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-sm font-medium text-gray-300">{lesson.lesson_date}</span>
+                                                        <button type="button" onClick={() => addLesson(student.id, students, setStudents)} className="text-xs text-purple-400 hover:text-purple-300">+ Lesson</button>
+                                                    </div>
+                                                    {lesson.notes && <p className="text-xs text-gray-500 mb-2">{lesson.notes}</p>}
+                                                    <ul className="space-y-1">
+                                                        {(lesson.swings || []).map((sw) => (
+                                                            <li key={sw.id} className="flex items-center justify-between py-1 text-sm">
+                                                                <span className="flex items-center gap-2">
+                                                                    <span className="w-2 h-2 rounded-full bg-gray-600" style={{ backgroundColor: { red: '#ef4444', orange: '#f97316', yellow: '#eab308', green: '#22c55e', blue: '#3b82f6', grey: '#6b7280' }[sw.color_label] || undefined }} /> 
+                                                                    {sw.label} {sw.view_tag && <span className="text-gray-500">({sw.view_tag})</span>}
+                                                                </span>
+                                                                <button type="button" onClick={() => { setLeftVideo(sw.url); setSelectedSwing({ studentId: student.id, lessonId: lesson.id, swing: sw, markers: sw.markers || [] }); setView('analyze'); }} className="text-purple-400 hover:text-purple-300 text-xs">Load in analyzer</button>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             </div>
                         ))}
                     </div>
+                    {libraryFilter.search || libraryFilter.viewTag ? (
+                        <div className="mt-6 p-4 bg-gray-800 rounded-xl border border-gray-700">
+                            <h4 className="font-semibold mb-2">Fast Filter results ({filteredSwings.length})</h4>
+                            <ul className="space-y-2">
+                                {filteredSwings.slice(0, 50).map(({ student, lesson, swing }) => (
+                                    <li key={`${student.id}-${lesson.id}-${swing.id}`} className="flex items-center justify-between text-sm py-1">
+                                        <span>{student.name} → {lesson.lesson_date} → {swing.label} {swing.view_tag && `(${swing.view_tag})`}</span>
+                                        <button type="button" onClick={() => { setLeftVideo(swing.url); setSelectedSwing({ studentId: student.id, lessonId: lesson.id, swing, markers: swing.markers || [] }); setView('analyze'); }} className="text-purple-400 hover:text-purple-300 text-xs">Load</button>
+                                    </li>
+                                ))}
+                                {filteredSwings.length > 50 && <li className="text-gray-500 text-sm">… and {filteredSwings.length - 50} more</li>}
+                            </ul>
+                        </div>
+                    ) : null}
                 </div>
             </div>
         </div>
@@ -563,18 +728,58 @@ export default function Swingstr() {
       {/* Save Modal */}
       {showSaveModal && (
           <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
+              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl max-h-[90vh] overflow-y-auto">
                   <h3 className="font-bold text-lg mb-4">Save Video to Student</h3>
                   <div className="space-y-4">
-                      <select className="w-full bg-gray-900 p-2 rounded border border-gray-600" onChange={(e) => setSaveData({...saveData, studentId: e.target.value})} value={saveData.studentId}>
+                      <select className="w-full bg-gray-900 p-2 rounded border border-gray-600" onChange={(e) => setSaveData({ ...saveData, studentId: e.target.value, lessonId: '' })} value={saveData.studentId}>
                           <option value="">Select Student...</option>
-                          {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
-                      <input className="w-full bg-gray-900 p-2 rounded border border-gray-600" placeholder="Label" value={saveData.label} onChange={(e) => setSaveData({...saveData, label: e.target.value})} />
-                      <div className="flex gap-2">
-                        <button onClick={() => setShowSaveModal(false)} className="flex-1 py-2 rounded text-gray-400 hover:text-white">Cancel</button>
-                        <button onClick={saveToStudent} className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Save</button>
+                      {saveData.studentId && (
+                          <select className="w-full bg-gray-900 p-2 rounded border border-gray-600" onChange={(e) => setSaveData({ ...saveData, lessonId: e.target.value })} value={saveData.lessonId}>
+                              <option value="">New lesson (today)</option>
+                              {(students.find((s) => s.id === parseInt(saveData.studentId, 10))?.lessons || []).map((l) => (
+                                  <option key={l.id} value={l.id}>{l.lesson_date} {l.notes ? `– ${l.notes}` : ''}</option>
+                              ))}
+                          </select>
+                      )}
+                      <input className="w-full bg-gray-900 p-2 rounded border border-gray-600" placeholder="Label" value={saveData.label} onChange={(e) => setSaveData({ ...saveData, label: e.target.value })} />
+                      <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400 w-16">View</span>
+                              <select className="flex-1 bg-gray-900 p-2 rounded border border-gray-600" value={saveData.view_tag} onChange={(e) => setSaveData({ ...saveData, view_tag: e.target.value })}>
+                                  {VIEW_TAGS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400 w-16">Color</span>
+                              <select className="flex-1 bg-gray-900 p-2 rounded border border-gray-600" value={saveData.color_label} onChange={(e) => setSaveData({ ...saveData, color_label: e.target.value })}>
+                                  {COLOR_LABELS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                              </select>
+                          </div>
                       </div>
+                      <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" checked={saveData.high_speed} onChange={(e) => setSaveData({ ...saveData, high_speed: e.target.checked })} />
+                          High speed
+                      </label>
+                      <div className="flex gap-2">
+                          <button type="button" onClick={() => setShowSaveModal(false)} className="flex-1 py-2 rounded text-gray-400 hover:text-white">Cancel</button>
+                          <button type="button" onClick={saveToStudent} className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Save</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Export two-panel modal */}
+      {showExportTwoPanel && (
+          <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
+                  <h3 className="font-bold text-lg mb-4">Export two-panel image with notes</h3>
+                  <textarea className="w-full bg-gray-900 border border-gray-600 rounded p-3 text-sm text-gray-300 h-24 resize-none mb-4" placeholder="Instructor notes (optional)..." value={exportTwoPanelNotes} onChange={(e) => setExportTwoPanelNotes(e.target.value)} />
+                  <div className="flex gap-2">
+                      <button type="button" onClick={() => { setShowExportTwoPanel(false); setExportTwoPanelNotes(''); }} className="flex-1 py-2 rounded text-gray-400 hover:text-white">Cancel</button>
+                      <button type="button" onClick={handleExportTwoPanel} className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500">Export</button>
                   </div>
               </div>
           </div>
@@ -639,6 +844,23 @@ export default function Swingstr() {
 
       <footer className="bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30">
          
+         {/* Positional markers (when a swing from library is loaded) */}
+         {selectedSwing && (
+             <div className="w-full px-4 py-2 border-b border-gray-700 flex items-center gap-2 flex-wrap">
+                 <span className="text-xs text-gray-400 font-medium">Markers:</span>
+                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                   const m = (selectedSwing.markers || []).find((x) => x.number === num);
+                   return (
+                     <span key={num} className="flex items-center gap-1">
+                       <button type="button" onClick={() => setMarker(num)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-xs" title={`Set marker ${num} at current time`}>Set {num}</button>
+                       {m != null ? <button type="button" onClick={() => goToMarker(m.time_seconds)} className="px-2 py-1 rounded bg-purple-800 hover:bg-purple-700 text-xs" title={`Go to ${m.time_seconds.toFixed(1)}s`}>Go {num}</button> : <span className="w-12 text-xs text-gray-500">–</span>}
+                     </span>
+                   );
+                 })}
+                 <button type="button" onClick={() => setSelectedSwing(null)} className="text-xs text-gray-500 hover:text-white ml-2">Clear loaded swing</button>
+             </div>
+         )}
+
          {/* Global Scrubber */}
          <div className="w-full px-4 pt-2 pb-1 flex items-center gap-3 border-b border-gray-700 bg-gray-850">
              <span className="text-xs font-mono text-gray-400 w-12 text-right">{globalTime.toFixed(1)}s</span>
@@ -696,6 +918,7 @@ export default function Swingstr() {
                 />
 
                 <IconButton onClick={handleSnapshot} title="Snapshot"><Camera size={20}/></IconButton>
+                <IconButton onClick={() => setShowExportTwoPanel(true)} title="Export two-panel with notes"><SplitSquareHorizontal size={20}/></IconButton>
                 <IconButton onClick={openSaveModal} title="Save to Student" className="text-purple-400 hover:text-purple-200"><Save size={20}/></IconButton>
              </div>
          </div>
