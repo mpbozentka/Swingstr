@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
 
+import { DEFAULT_MARKER_LABELS } from './components/MarkerBar';
+
 const STORAGE_KEY = 'swingstr_students';
 const DEFAULT_STUDENTS = [
   {
@@ -17,6 +19,7 @@ const DEFAULT_STUDENTS = [
 export default function Swingstr() {
   const [view, setView] = useState('analyze');
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showSequenceModal, setShowSequenceModal] = useState(false);
   const [layout, setLayout] = useState('single');
   const [sync, setSync] = useState(false);
   const [activeScreen, setActiveScreen] = useState('left');
@@ -37,6 +40,9 @@ export default function Swingstr() {
   const [saveData, setSaveData] = useState({ studentId: '', label: '' });
   const [editingStudent, setEditingStudent] = useState(null);
 
+  const [markers, setMarkers] = useState({ left: [], right: [] });
+  const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
+
   const [tool, setTool] = useState('move');
   const [color, setColor] = useState('#ef4444');
   const [lineWidth, setLineWidth] = useState(3);
@@ -49,6 +55,64 @@ export default function Swingstr() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
   }, [students]);
+
+  const handleSetMarker = useCallback((side, index, time) => {
+    setMarkers((prev) => {
+      const sideMarkers = [...prev[side]];
+      const existing = sideMarkers.findIndex((m) => m.index === index);
+      const marker = {
+        id: Date.now(),
+        index,
+        time,
+        label: DEFAULT_MARKER_LABELS[index],
+      };
+      if (existing >= 0) {
+        sideMarkers[existing] = marker;
+      } else {
+        sideMarkers.push(marker);
+      }
+      return { ...prev, [side]: sideMarkers };
+    });
+  }, []);
+
+  const handleRemoveMarker = useCallback((side, index) => {
+    setMarkers((prev) => ({
+      ...prev,
+      [side]: prev[side].filter((m) => m.index !== index),
+    }));
+  }, []);
+
+  const jumpToMarker = useCallback((side, index) => {
+    const marker = markers[side].find((m) => m.index === index);
+    if (!marker) return;
+    const ref = side === 'left' ? leftRef : rightRef;
+    ref.current?.seekTo(marker.time);
+    setGlobalTime(marker.time);
+  }, [markers]);
+
+  const jumpToPrevMarker = useCallback(() => {
+    const sideMarkers = markers[activeScreen]
+      .filter((m) => m.time < globalTime - 0.05)
+      .sort((a, b) => b.time - a.time);
+    if (sideMarkers.length > 0) {
+      const m = sideMarkers[0];
+      const ref = activeScreen === 'left' ? leftRef : rightRef;
+      ref.current?.seekTo(m.time);
+      setGlobalTime(m.time);
+    }
+  }, [markers, activeScreen, globalTime]);
+
+  const jumpToNextMarker = useCallback(() => {
+    const sideMarkers = markers[activeScreen]
+      .filter((m) => m.time > globalTime + 0.05)
+      .sort((a, b) => a.time - b.time);
+    if (sideMarkers.length > 0) {
+      const m = sideMarkers[0];
+      const ref = activeScreen === 'left' ? leftRef : rightRef;
+      ref.current?.seekTo(m.time);
+      setGlobalTime(m.time);
+    }
+  }, [markers, activeScreen, globalTime]);
 
   const handleUpload = useCallback((side, e) => {
     if (!e.target.files?.[0]) return;
@@ -65,9 +129,24 @@ export default function Swingstr() {
     }
   }, []);
 
+  const handleSetSyncPoint = useCallback((side) => {
+    const ref = side === 'left' ? leftRef : rightRef;
+    const time = ref.current?.currentTime ?? 0;
+    setSyncPoints((prev) => ({ ...prev, [side]: time }));
+  }, []);
+
+  const handleClearSyncPoint = useCallback((side) => {
+    setSyncPoints((prev) => ({ ...prev, [side]: null }));
+  }, []);
+
+  // Compute sync offset when both sync points are set
+  const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
+  const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
+
   const handleClearVideo = useCallback((side) => {
     if (side === 'left') setLeftVideo(null);
     else setRightVideo(null);
+    setSyncPoints((prev) => ({ ...prev, [side]: null }));
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
@@ -87,6 +166,12 @@ export default function Swingstr() {
     setIsPlaying((prev) => {
       const newState = !prev;
       if (sync) {
+        if (newState && hasSyncOffset) {
+          // Pre-seek right video to maintain offset before playing
+          const leftTime = leftRef.current?.currentTime ?? 0;
+          const rightTarget = Math.max(0, leftTime - syncOffset);
+          rightRef.current?.seekTo(rightTarget);
+        }
         newState
           ? (leftRef.current?.play(), rightRef.current?.play())
           : (leftRef.current?.pause(), rightRef.current?.pause());
@@ -96,7 +181,7 @@ export default function Swingstr() {
       }
       return newState;
     });
-  }, [sync, activeScreen]);
+  }, [sync, activeScreen, hasSyncOffset, syncOffset]);
 
   const seek = useCallback((amount) => {
     if (sync) {
@@ -139,21 +224,21 @@ export default function Swingstr() {
   const handleLinkedScrub = useCallback((time) => {
     if (sync) {
       leftRef.current?.seekTo(time);
-      rightRef.current?.seekTo(time);
+      rightRef.current?.seekTo(hasSyncOffset ? Math.max(0, time - syncOffset) : time);
     }
-  }, [sync]);
+  }, [sync, hasSyncOffset, syncOffset]);
 
   const handleGlobalScrub = useCallback((e) => {
     const t = parseFloat(e.target.value);
     setGlobalTime(t);
     if (sync) {
       leftRef.current?.seekTo(t);
-      rightRef.current?.seekTo(t);
+      rightRef.current?.seekTo(hasSyncOffset ? Math.max(0, t - syncOffset) : t);
     } else {
       if (activeScreen === 'left') leftRef.current?.seekTo(t);
       else rightRef.current?.seekTo(t);
     }
-  }, [sync, activeScreen]);
+  }, [sync, activeScreen, hasSyncOffset, syncOffset]);
 
   const saveToStudent = useCallback(() => {
     if (!saveData.studentId || !saveData.label) return;
@@ -191,10 +276,23 @@ export default function Swingstr() {
         e.preventDefault();
         togglePlay();
       }
+      // Marker shortcuts: 1-9,0 maps to index 0-9
+      // Shift+digit: set marker at current time, plain digit: jump to marker
+      const shiftDigit = e.shiftKey && e.code?.match(/^Digit([0-9])$/);
+      const digitMatch = e.key.match(/^[0-9]$/);
+      if (shiftDigit) {
+        const keyIndex = shiftDigit[1] === '0' ? 9 : parseInt(shiftDigit[1], 10) - 1;
+        e.preventDefault();
+        handleSetMarker(activeScreen, keyIndex, globalTime);
+      } else if (digitMatch && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
+        const keyIndex = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
+        e.preventDefault();
+        jumpToMarker(activeScreen, keyIndex);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay]);
+  }, [seek, togglePlay, handleSetMarker, jumpToMarker, activeScreen, globalTime]);
 
   if (view === 'library') {
     return (
@@ -247,6 +345,19 @@ export default function Swingstr() {
       onGlobalScrub={handleGlobalScrub}
       onTimeUpdate={handleTimeUpdate}
       onLinkedScrub={handleLinkedScrub}
+      showSequenceModal={showSequenceModal}
+      setShowSequenceModal={setShowSequenceModal}
+      allMarkers={markers}
+      syncPoints={syncPoints}
+      hasSyncOffset={hasSyncOffset}
+      onSetSyncPoint={handleSetSyncPoint}
+      onClearSyncPoint={handleClearSyncPoint}
+      markers={markers[activeScreen]}
+      onSetMarker={(index, time) => handleSetMarker(activeScreen, index, time)}
+      onRemoveMarker={(index) => handleRemoveMarker(activeScreen, index)}
+      onJumpToMarker={(index) => jumpToMarker(activeScreen, index)}
+      onPrevMarker={jumpToPrevMarker}
+      onNextMarker={jumpToNextMarker}
       students={students}
       showSaveModal={showSaveModal}
       setShowSaveModal={setShowSaveModal}

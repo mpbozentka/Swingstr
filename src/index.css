@@ -7,3 +7,10 @@ body {
   margin: 0;
   color: white;
 }
+
+/* Keep footer tools above mobile browser UI (address bar, nav) */
+@media (max-width: 768px) {
+  .footer-mobile-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 80px) !important;
+  }
+}

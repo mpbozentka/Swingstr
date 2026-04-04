@@ -18,6 +18,10 @@ import {
   Palette,
   PenTool,
   Gauge,
+  Crosshair,
+  Check,
+  X,
+  LayoutGrid,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
 import VideoCanvas from './VideoCanvas';
@@ -25,6 +29,8 @@ import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
 import SaveModal from './SaveModal';
+import MarkerBar from './MarkerBar';
+import SwingSequenceModal from './SwingSequenceModal';
 
 export default function AnalyzerView({
   onOpenLibrary,
@@ -64,6 +70,19 @@ export default function AnalyzerView({
   onGlobalScrub,
   onTimeUpdate,
   onLinkedScrub,
+  showSequenceModal,
+  setShowSequenceModal,
+  allMarkers,
+  syncPoints,
+  hasSyncOffset,
+  onSetSyncPoint,
+  onClearSyncPoint,
+  markers,
+  onSetMarker,
+  onRemoveMarker,
+  onJumpToMarker,
+  onPrevMarker,
+  onNextMarker,
   students,
   showSaveModal,
   setShowSaveModal,
@@ -83,6 +102,17 @@ export default function AnalyzerView({
         saveData={saveData}
         setSaveData={setSaveData}
         onSave={saveToStudent}
+      />
+
+      <SwingSequenceModal
+        show={showSequenceModal}
+        onClose={() => setShowSequenceModal(false)}
+        leftRef={leftRef}
+        rightRef={rightRef}
+        leftVideo={leftVideo}
+        rightVideo={rightVideo}
+        leftMarkers={allMarkers?.left || []}
+        rightMarkers={allMarkers?.right || []}
       />
 
       <div onClick={(e) => e.stopPropagation()}>
@@ -144,14 +174,51 @@ export default function AnalyzerView({
             </button>
           </div>
           {layout === 'split' && (
-            <button
-              onClick={() => setSync(!sync)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${sync ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-            >
-              {sync ? <LinkIcon size={16} /> : <Link2Off size={16} />}{' '}
-              {sync ? 'Linked' : 'Unlinked'}
-            </button>
+            <>
+              <button
+                onClick={() => setSync(!sync)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${sync ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+              >
+                {sync ? <LinkIcon size={16} /> : <Link2Off size={16} />}{' '}
+                {sync ? 'Linked' : 'Unlinked'}
+              </button>
+              {sync && (
+                <div className="flex items-center gap-1">
+                  {/* Left sync point */}
+                  <button
+                    onClick={() => syncPoints.left != null ? onClearSyncPoint('left') : onSetSyncPoint('left')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      syncPoints.left != null
+                        ? 'bg-amber-600/30 text-amber-400 border border-amber-600/50'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+                    }`}
+                    title={syncPoints.left != null ? `L sync: ${syncPoints.left.toFixed(2)}s — click to clear` : 'Set left sync point'}
+                  >
+                    <Crosshair size={12} />
+                    L
+                    {syncPoints.left != null ? <Check size={10} /> : null}
+                  </button>
+                  {/* Right sync point */}
+                  <button
+                    onClick={() => syncPoints.right != null ? onClearSyncPoint('right') : onSetSyncPoint('right')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      syncPoints.right != null
+                        ? 'bg-amber-600/30 text-amber-400 border border-amber-600/50'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+                    }`}
+                    title={syncPoints.right != null ? `R sync: ${syncPoints.right.toFixed(2)}s — click to clear` : 'Set right sync point'}
+                  >
+                    <Crosshair size={12} />
+                    R
+                    {syncPoints.right != null ? <Check size={10} /> : null}
+                  </button>
+                  {hasSyncOffset && (
+                    <span className="text-[10px] text-amber-400/60 ml-1">synced</span>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -225,24 +292,66 @@ export default function AnalyzerView({
         )}
       </main>
 
-      <footer className="bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30">
+      <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30 pb-4">
         <div className="w-full px-4 pt-2 pb-1 flex items-center gap-3 border-b border-gray-700 bg-gray-800">
           <span className="text-xs font-mono text-gray-400 w-12 text-right">
             {globalTime.toFixed(1)}s
           </span>
-          <input
-            type="range"
-            min="0"
-            max={globalDuration || 100}
-            step="0.01"
-            value={globalTime}
-            onChange={onGlobalScrub}
-            className="flex-1 h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
-          />
+          <div className="flex-1 relative">
+            <input
+              type="range"
+              min="0"
+              max={globalDuration || 100}
+              step="0.01"
+              value={globalTime}
+              onChange={onGlobalScrub}
+              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
+            />
+            {/* Sync point indicators on timeline */}
+            {globalDuration > 0 && syncPoints.left != null && (
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-amber-400/70 z-20 pointer-events-none"
+                style={{ left: `${(syncPoints.left / globalDuration) * 100}%` }}
+                title={`L sync: ${syncPoints.left.toFixed(2)}s`}
+              >
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-r-[3px] border-t-[4px] border-l-transparent border-r-transparent border-t-amber-400" />
+              </div>
+            )}
+            {globalDuration > 0 && syncPoints.right != null && (
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-amber-500/70 z-20 pointer-events-none"
+                style={{ left: `${(syncPoints.right / globalDuration) * 100}%` }}
+                title={`R sync: ${syncPoints.right.toFixed(2)}s`}
+              >
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-r-[3px] border-b-[4px] border-l-transparent border-r-transparent border-b-amber-500" />
+              </div>
+            )}
+            {/* Marker diamonds on timeline */}
+            {globalDuration > 0 && markers.map((m) => (
+              <button
+                key={m.index}
+                onClick={() => onJumpToMarker(m.index)}
+                className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-purple-400 border border-purple-300 hover:bg-purple-300 hover:scale-125 transition-all z-10 pointer-events-auto"
+                style={{ left: `${(m.time / globalDuration) * 100}%`, transform: 'translateX(-50%) translateY(-50%) rotate(45deg)' }}
+                title={`${m.label} (${m.time.toFixed(2)}s)`}
+              />
+            ))}
+          </div>
           <span className="text-xs font-mono text-gray-400 w-12">
             {globalDuration.toFixed(1)}s
           </span>
         </div>
+
+        <MarkerBar
+          markers={markers}
+          duration={globalDuration}
+          currentTime={globalTime}
+          onJumpTo={onJumpToMarker}
+          onSetMarker={onSetMarker}
+          onRemoveMarker={onRemoveMarker}
+          onPrev={onPrevMarker}
+          onNext={onNextMarker}
+        />
 
         <div className="flex items-center justify-between px-4 py-2 h-14">
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -316,6 +425,12 @@ export default function AnalyzerView({
             />
             <IconButton onClick={onSnapshot} title="Snapshot">
               <Camera size={20} />
+            </IconButton>
+            <IconButton
+              onClick={() => setShowSequenceModal(true)}
+              title="Swing Sequence Export"
+            >
+              <LayoutGrid size={20} />
             </IconButton>
             <IconButton
               onClick={openSaveModal}

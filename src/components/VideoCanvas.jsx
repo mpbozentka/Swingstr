@@ -85,6 +85,30 @@ const VideoCanvas = forwardRef(
       return tempCanvas.toDataURL('image/jpeg', 0.9);
     }, [shapes, zoomLevel]);
 
+    const captureFrameAtTime = useCallback(async (time) => {
+      const vid = videoRef.current;
+      if (!vid || vid.videoWidth === 0) return null;
+      const wasPlaying = !vid.paused;
+      if (wasPlaying) vid.pause();
+      vid.currentTime = time;
+      await new Promise((resolve) => {
+        vid.addEventListener('seeked', resolve, { once: true });
+      });
+      // Small delay to ensure frame is decoded
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const offscreen = document.createElement('canvas');
+      offscreen.width = vid.videoWidth;
+      offscreen.height = vid.videoHeight;
+      const ctx = offscreen.getContext('2d');
+      try {
+        ctx.drawImage(vid, 0, 0, offscreen.width, offscreen.height);
+      } catch (e) {
+        console.warn('captureFrameAtTime: drawImage failed', e.message);
+        return null;
+      }
+      return { canvas: offscreen, shapes: [...shapes] };
+    }, [shapes]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -105,6 +129,8 @@ const VideoCanvas = forwardRef(
           draggingHandle.current = null;
         },
         getSnapshot: takeSnapshot,
+        captureFrameAtTime,
+        getShapes: () => [...shapes],
         hasVideo: !!src,
         get currentTime() {
           return videoRef.current?.currentTime ?? 0;
@@ -113,7 +139,7 @@ const VideoCanvas = forwardRef(
           return videoRef.current?.duration ?? 0;
         },
       }),
-      [takeSnapshot, src]
+      [takeSnapshot, captureFrameAtTime, src, shapes]
     );
 
     useEffect(() => {
