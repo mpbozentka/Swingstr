@@ -1,11 +1,16 @@
 import React from 'react';
 
-export function Button({ onClick, active, children, className = '', title = '', disabled }) {
+export function Button({ onClick, active, children, className = '', title = '', disabled, ...rest }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      // Title alone isn't read by screen readers or shown on touch — fall
+      // back to it as the accessible name when no explicit aria-label is
+      // provided.
+      aria-label={rest['aria-label'] ?? (title || undefined)}
       disabled={disabled}
+      {...rest}
       className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center ${active
           ? 'bg-purple-600 text-white shadow-lg scale-105'
           : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'
@@ -16,11 +21,14 @@ export function Button({ onClick, active, children, className = '', title = '', 
   );
 }
 
-export function IconButton({ onClick, active, children, title, className = '' }) {
+export function IconButton({ onClick, active, children, title, className = '', ...rest }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      aria-label={rest['aria-label'] ?? (title || undefined)}
+      aria-pressed={active}
+      {...rest}
       className={`p-2 rounded-lg transition-all flex items-center justify-center ${active
           ? 'bg-purple-600 text-white shadow-lg'
           : 'text-gray-400 hover:bg-gray-700 hover:text-white'

@@ -23,6 +23,7 @@ export default function MarkerBar({
         onClick={onPrev}
         className="text-gray-400 hover:text-purple-400 transition-colors shrink-0"
         title="Previous Marker"
+        aria-label="Previous marker"
       >
         <ChevronLeft size={16} />
       </button>
@@ -62,6 +63,7 @@ export default function MarkerBar({
         onClick={onNext}
         className="text-gray-400 hover:text-purple-400 transition-colors shrink-0"
         title="Next Marker"
+        aria-label="Next marker"
       >
         <ChevronRight size={16} />
       </button>
@@ -75,6 +77,9 @@ export default function MarkerBar({
           }}
           className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
           title="Set Marker at Current Time"
+          aria-label="Set marker at current time"
+          aria-expanded={showSlots}
+          aria-haspopup="menu"
         >
           <Plus size={12} />
           <Bookmark size={12} />

@@ -524,6 +524,7 @@ const VideoCanvas = forwardRef(
                 }}
                 className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-red-600 text-white rounded-full transition-colors"
                 title="Clear Video"
+                aria-label="Clear video"
               >
                 <X size={20} />
               </button>

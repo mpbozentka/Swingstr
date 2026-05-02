@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { X, Download, Loader2, LayoutGrid } from 'lucide-react';
 import { DEFAULT_MARKER_LABELS } from '../constants/markers';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 import {
   generateSwingSequence,
   getEvenFrameTimes,
@@ -27,6 +28,8 @@ export default function SwingSequenceModal({
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState(null);
+
+  useEscapeClose(show, onClose);
 
   const hasLeft = !!leftVideo;
   const hasRight = !!rightVideo;
@@ -113,16 +116,26 @@ export default function SwingSequenceModal({
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="swing-seq-title"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <LayoutGrid size={20} className="text-purple-400" />
-            <h2 className="text-lg font-bold text-white">Swing Sequence Export</h2>
+            <h2 id="swing-seq-title" className="text-lg font-bold text-white">Swing Sequence Export</h2>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="text-gray-400 hover:text-white transition-colors"
           >
             <X size={20} />

@@ -162,12 +162,16 @@ export default function AnalyzerView({
                 setLayout('single');
                 setActiveScreen('left');
               }}
+              aria-label="Single screen layout"
+              aria-pressed={layout === 'single'}
               className={`p-1.5 rounded ${layout === 'single' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}
             >
               <Maximize size={18} />
             </button>
             <button
               onClick={() => setLayout('split')}
+              aria-label="Split screen layout"
+              aria-pressed={layout === 'split'}
               className={`p-1.5 rounded ${layout === 'split' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}
             >
               <SplitSquareHorizontal size={18} />
@@ -222,13 +226,13 @@ export default function AnalyzerView({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => adjustZoom(-0.2)}>
+          <Button onClick={() => adjustZoom(-0.2)} title="Zoom out" aria-label="Zoom out">
             <ZoomOut size={18} />
           </Button>
-          <span className="w-12 text-center font-mono text-sm text-purple-400 font-bold">
+          <span className="w-12 text-center font-mono text-sm text-purple-400 font-bold" aria-live="polite">
             {zooms[activeScreen].toFixed(1)}x
           </span>
-          <Button onClick={() => adjustZoom(0.2)}>
+          <Button onClick={() => adjustZoom(0.2)} title="Zoom in" aria-label="Zoom in">
             <ZoomIn size={18} />
           </Button>
         </div>
@@ -292,6 +296,7 @@ export default function AnalyzerView({
               step="0.01"
               value={globalTime}
               onChange={onGlobalScrub}
+              aria-label="Video timeline"
               className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
             />
             {/* Sync point indicators on timeline */}
@@ -380,12 +385,17 @@ export default function AnalyzerView({
           <div className="flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
             <button
               onClick={() => seek(-0.05)}
+              aria-label="Previous frame"
+              title="Previous frame (←)"
               className="text-gray-400 hover:text-white"
             >
               <ChevronLeft size={28} />
             </button>
             <button
               onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              aria-pressed={isPlaying}
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               className="bg-purple-600 text-white p-2 rounded-full hover:bg-purple-500 shadow-lg active:scale-95"
             >
               {isPlaying ? (
@@ -396,6 +406,8 @@ export default function AnalyzerView({
             </button>
             <button
               onClick={() => seek(0.05)}
+              aria-label="Next frame"
+              title="Next frame (→)"
               className="text-gray-400 hover:text-white"
             >
               <ChevronRight size={28} />

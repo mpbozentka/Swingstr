@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 
 export default function SaveModal({
   show,
@@ -8,14 +9,21 @@ export default function SaveModal({
   setSaveData,
   onSave,
 }) {
+  useEscapeClose(show, onClose);
   if (!show) return null;
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="save-modal-title"
       className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center"
-      onClick={(e) => e.stopPropagation()}
+      onClick={onClose}
     >
-      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
-        <h3 className="font-bold text-lg mb-4">Save Video to Student</h3>
+      <div
+        className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="save-modal-title" className="font-bold text-lg mb-4">Save Video to Student</h3>
         <div className="space-y-4">
           <select
             className="w-full bg-gray-900 p-2 rounded border border-gray-600"

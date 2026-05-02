@@ -1,11 +1,22 @@
 import React from 'react';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 
 export default function EditStudentModal({ student, onSave, onClose }) {
+  useEscapeClose(!!student, onClose);
   if (!student) return null;
   return (
-    <div className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center">
-      <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl">
-        <h3 className="font-bold text-lg mb-4">Edit Profile</h3>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-student-title"
+      className="absolute inset-0 z-[100] bg-black/70 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-800 p-6 rounded-xl border border-gray-700 w-96 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="edit-student-title" className="font-bold text-lg mb-4">Edit Profile</h3>
         <form onSubmit={onSave} className="space-y-4">
           <input
             name="name"

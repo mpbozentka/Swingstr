@@ -21,6 +21,8 @@ export default function StyleMenu({ color, setColor, lineWidth, setLineWidth }) 
           <button
             key={c}
             onClick={() => setColor(c)}
+            aria-label={`Stroke color ${c}`}
+            aria-pressed={color === c}
             className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${color === c
                 ? 'border-white scale-110 ring-2 ring-purple-500'
                 : 'border-transparent'
@@ -43,6 +45,7 @@ export default function StyleMenu({ color, setColor, lineWidth, setLineWidth }) 
           max="10"
           value={lineWidth}
           onChange={(e) => setLineWidth(parseInt(e.target.value, 10))}
+          aria-label="Stroke thickness"
           className="flex-1 accent-purple-500 h-1 bg-gray-600 rounded-lg cursor-pointer"
         />
       </div>
