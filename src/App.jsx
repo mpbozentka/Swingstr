@@ -169,6 +169,32 @@ export default function Swingstr() {
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
 
+  // Drift correction loop (#6): different decode timings would let the two
+  // videos visibly slip apart over a few seconds of synced playback. While
+  // playing in sync, run a per-frame check and snap the right video back
+  // when it drifts more than ~1 frame at 30fps. The snap is gentle enough
+  // that the user only sees an occasional tiny re-seek, not stutter.
+  useEffect(() => {
+    if (!sync || !isPlaying) return undefined;
+    let frame = 0;
+    const DRIFT_THRESHOLD = 0.06;
+    const tick = () => {
+      const left = leftRef.current;
+      const right = rightRef.current;
+      if (left && right) {
+        const lt = left.currentTime;
+        const expected = Math.max(0, lt - syncOffset);
+        const drift = right.currentTime - expected;
+        if (Number.isFinite(drift) && Math.abs(drift) > DRIFT_THRESHOLD) {
+          right.seekTo(expected);
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [sync, isPlaying, syncOffset]);
+
   const handleClearVideo = useCallback((side) => {
     releaseObjectUrl(`video:${side}`);
     if (side === 'left') {

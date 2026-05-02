@@ -135,13 +135,21 @@ export async function generateSwingSequence({
       if (frame?.canvas) {
         ctx.drawImage(frame.canvas, x, y, cellW, frameH);
 
-        // Render annotations on top
-        if (frame.shapes?.length > 0) {
+        // Render annotations on top — shapes are stored in the live view's
+        // container-pixel space, so we need the frame's videoRect (the
+        // letterboxed rect where the video lived in the live container) to
+        // map them correctly into this cell's pixel space. (#5)
+        if (frame.shapes?.length > 0 && frame.videoRect) {
+          const vr = frame.videoRect;
           ctx.save();
           ctx.translate(x, y);
-          const videoRect = { x: 0, y: 0, w: cellW, h: frameH };
+          ctx.scale(cellW / vr.w, frameH / vr.h);
+          ctx.translate(-vr.x, -vr.y);
+          // Pass a videoRect that matches the frame canvas so blur shapes
+          // (which read videoRect for drawImage) cover the full cell.
+          const cellVideoRect = { x: vr.x, y: vr.y, w: vr.w, h: vr.h };
           frame.shapes.forEach((shape) => {
-            renderShape(ctx, shape, { zoomLevel: 1, videoRect });
+            renderShape(ctx, shape, { zoomLevel: 1, videoRect: cellVideoRect });
           });
           ctx.restore();
         }

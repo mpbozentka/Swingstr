@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import { Upload, X, Globe } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
-import { getHandlesForShape, hitTestHandle, hitTestShape, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
+import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
   (
@@ -39,14 +39,48 @@ const VideoCanvas = forwardRef(
     const isPanning = useRef(false);
     const lastPointerPos = useRef({ x: 0, y: 0 });
     const [shapes, setShapes] = useState([]);
+    // Mirror of `shapes` so the imperative handle (and async capture loops)
+    // can read the latest array without needing a re-bind. (#8)
+    const shapesRef = useRef([]);
+    useEffect(() => { shapesRef.current = shapes; }, [shapes]);
+
     const [currentShape, setCurrentShape] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [points, setPoints] = useState([]);
     const [selectedIndex, setSelectedIndex] = useState(-1);
     const draggingHandle = useRef(null);
+    // Live freehand strokes paint into this ref instead of state to avoid an
+    // O(n) state rebuild per pointermove; the canvas redraws via `draw()` deps
+    // which still pick up shape changes when the gesture commits. (#22)
+    const livePointsRef = useRef(null);
 
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+
+    /**
+     * Compute the rect (in container/canvas pixels) where the video is
+     * actually drawn after object-contain letterboxing. Shapes are stored in
+     * container-pixel coordinates, so any code that wants to stamp them onto
+     * a video-resolution canvas needs this rect to do the inverse mapping
+     * (#5).
+     */
+    const computeVideoRect = (vid, container) => {
+      let x = 0, y = 0, w = container.clientWidth, h = container.clientHeight;
+      if (vid?.videoWidth) {
+        const rVid = vid.videoWidth / vid.videoHeight;
+        const rCan = w / h;
+        if (rCan > rVid) {
+          const newW = h * rVid;
+          x = (w - newW) / 2;
+          w = newW;
+        } else {
+          const newH = w / rVid;
+          y = (h - newH) / 2;
+          h = newH;
+        }
+      }
+      return { x, y, w, h };
+    };
 
     const takeSnapshot = useCallback(async () => {
       if (!videoRef.current || !canvasRef.current || !containerRef.current)
@@ -66,15 +100,20 @@ const VideoCanvas = forwardRef(
         return null;
       }
 
-      const scaleX = vid.videoWidth / containerRef.current.clientWidth;
-      const scaleY = vid.videoHeight / containerRef.current.clientHeight;
-      const videoRect = { x: 0, y: 0, w: tempCanvas.width, h: tempCanvas.height };
+      // Map container-pixel shape coords onto the video-pixel canvas. This is
+      // the inverse of the letterbox mapping the live view applies; without
+      // it, shapes drawn over a 16:9 video in a 4:3 cell were stretched and
+      // shifted on export.
+      const videoRect = computeVideoRect(vid, containerRef.current);
+      const sx = tempCanvas.width / videoRect.w;
+      const sy = tempCanvas.height / videoRect.h;
 
       ctx.save();
-      ctx.scale(scaleX, scaleY);
-      shapes.forEach((s) => {
+      ctx.scale(sx, sy);
+      ctx.translate(-videoRect.x, -videoRect.y);
+      shapesRef.current.forEach((s) => {
         renderShape(ctx, s, {
-          zoomLevel,
+          zoomLevel: 1,
           video: vid,
           videoRect,
           blurPx: 15,
@@ -83,11 +122,12 @@ const VideoCanvas = forwardRef(
       ctx.restore();
 
       return tempCanvas.toDataURL('image/jpeg', 0.9);
-    }, [shapes, zoomLevel]);
+    }, []);
 
     const captureFrameAtTime = useCallback(async (time) => {
       const vid = videoRef.current;
-      if (!vid || vid.videoWidth === 0) return null;
+      const container = containerRef.current;
+      if (!vid || !container || vid.videoWidth === 0) return null;
       const wasPlaying = !vid.paused;
       if (wasPlaying) vid.pause();
       vid.currentTime = time;
@@ -106,8 +146,12 @@ const VideoCanvas = forwardRef(
         console.warn('captureFrameAtTime: drawImage failed', e.message);
         return null;
       }
-      return { canvas: offscreen, shapes: [...shapes] };
-    }, [shapes]);
+      return {
+        canvas: offscreen,
+        shapes: shapesRef.current.slice(),
+        videoRect: computeVideoRect(vid, container),
+      };
+    }, []);
 
     useImperativeHandle(
       ref,
@@ -130,7 +174,9 @@ const VideoCanvas = forwardRef(
         },
         getSnapshot: takeSnapshot,
         captureFrameAtTime,
-        getShapes: () => [...shapes],
+        // Read shapes via the ref so we don't rebind the imperative handle
+        // every time the user finishes a stroke. (#8)
+        getShapes: () => shapesRef.current.slice(),
         hasVideo: !!src,
         get currentTime() {
           return videoRef.current?.currentTime ?? 0;
@@ -139,7 +185,7 @@ const VideoCanvas = forwardRef(
           return videoRef.current?.duration ?? 0;
         },
       }),
-      [takeSnapshot, captureFrameAtTime, src, shapes]
+      [takeSnapshot, captureFrameAtTime, src]
     );
 
     useEffect(() => {
@@ -302,7 +348,11 @@ const VideoCanvas = forwardRef(
           setSelectedIndex(idx);
           return;
         }
+        // (#10) The first click in empty space deselects only — don't fall
+        // through and start a new stroke at the same position. The user can
+        // click again to begin drawing.
         setSelectedIndex(-1);
+        return;
       }
       if (tool === 'select') {
         const idx = findShapeAtPos(pos, shapes, zoomLevel);
@@ -333,9 +383,12 @@ const VideoCanvas = forwardRef(
       }
       setIsDrawing(true);
       if (tool === 'free') {
+        // Accumulate points in a ref to avoid an O(n) state rebuild per
+        // pointermove; we'll commit to React state on pointerup. (#22)
+        livePointsRef.current = [pos];
         setCurrentShape({
           type: 'free',
-          points: [pos],
+          points: livePointsRef.current,
           color,
           width: lineWidth,
         });
@@ -377,10 +430,12 @@ const VideoCanvas = forwardRef(
       if (!isDrawing) return;
       const pos = getPos(e);
       if (tool === 'free') {
-        setCurrentShape((prev) => ({
-          ...prev,
-          points: [...prev.points, pos],
-        }));
+        // Mutate the live points ref directly; the shared `currentShape`
+        // already holds a reference to this array, so the next draw frame
+        // sees the latest points without a state update. (#22)
+        livePointsRef.current?.push(pos);
+        // Bump a no-op state to trigger re-draw at most once per frame.
+        setCurrentShape((prev) => prev && { ...prev });
       } else {
         setCurrentShape((prev) => ({ ...prev, end: pos }));
       }
@@ -395,12 +450,19 @@ const VideoCanvas = forwardRef(
       if (!isDrawing) return;
       setIsDrawing(false);
       if (currentShape) {
+        // Snapshot the live points into an immutable array so further edits
+        // (or the ref being reused for a later stroke) don't mutate stored
+        // shapes.
+        const committed = currentShape.type === 'free' && livePointsRef.current
+          ? { ...currentShape, points: livePointsRef.current.slice() }
+          : currentShape;
         setShapes((prev) => {
-          const next = [...prev, currentShape];
+          const next = [...prev, committed];
           setSelectedIndex(next.length - 1);
           return next;
         });
         setCurrentShape(null);
+        livePointsRef.current = null;
       }
     };
 
