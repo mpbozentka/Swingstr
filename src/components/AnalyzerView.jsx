@@ -24,7 +24,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
-import VideoCanvas from './VideoCanvas';
+import ScreenPane from './ScreenPane';
 import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
@@ -72,12 +72,12 @@ export default function AnalyzerView({
   onLinkedScrub,
   showSequenceModal,
   setShowSequenceModal,
-  allMarkers,
+  markers,
   syncPoints,
   hasSyncOffset,
   onSetSyncPoint,
   onClearSyncPoint,
-  markers,
+  activeMarkers,
   onSetMarker,
   onRemoveMarker,
   onJumpToMarker,
@@ -111,8 +111,8 @@ export default function AnalyzerView({
         rightRef={rightRef}
         leftVideo={leftVideo}
         rightVideo={rightVideo}
-        leftMarkers={allMarkers?.left || []}
-        rightMarkers={allMarkers?.right || []}
+        leftMarkers={markers?.left || []}
+        rightMarkers={markers?.right || []}
       />
 
       <div onClick={(e) => e.stopPropagation()}>
@@ -235,60 +235,47 @@ export default function AnalyzerView({
       </header>
 
       <main className="flex-1 flex overflow-hidden bg-black relative">
-        <div
-          className={`h-full relative flex flex-col ${layout === 'split' ? 'w-1/2' : 'w-full'} ${activeScreen === 'left' ? 'z-10' : 'z-0'}`}
-        >
-          {activeScreen === 'left' && (
-            <div className="absolute top-4 left-4 bg-purple-600 text-xs font-bold px-2 py-1 rounded z-20 pointer-events-none">
-              ACTIVE
-            </div>
-          )}
-          <VideoCanvas
-            ref={leftRef}
-            src={leftVideo}
+        <ScreenPane
+          side="left"
+          layout={layout}
+          active={activeScreen === 'left'}
+          ref={leftRef}
+          src={leftVideo}
+          tool={tool}
+          color={color}
+          lineWidth={lineWidth}
+          playbackRate={speed}
+          zoomLevel={zooms.left}
+          onActivate={() => setActiveScreen('left')}
+          onUpload={(e) => onUpload('left', e)}
+          onUrlUpload={() => onUrlUpload('left')}
+          onClear={() => onClearVideo('left')}
+          isSynced={sync}
+          onScrub={onLinkedScrub}
+          onTimeUpdate={onTimeUpdate}
+        />
+
+        {layout === 'split' && (
+          <ScreenPane
+            side="right"
+            layout={layout}
+            active={activeScreen === 'right'}
+            containerClassName="border-l border-gray-800"
+            ref={rightRef}
+            src={rightVideo}
             tool={tool}
             color={color}
             lineWidth={lineWidth}
             playbackRate={speed}
-            zoomLevel={zooms.left}
-            isActive={activeScreen === 'left'}
-            onActivate={() => setActiveScreen('left')}
-            onUpload={(e) => onUpload('left', e)}
-            onUrlUpload={() => onUrlUpload('left')}
-            onClear={() => onClearVideo('left')}
+            zoomLevel={zooms.right}
+            onActivate={() => setActiveScreen('right')}
+            onUpload={(e) => onUpload('right', e)}
+            onUrlUpload={() => onUrlUpload('right')}
+            onClear={() => onClearVideo('right')}
             isSynced={sync}
             onScrub={onLinkedScrub}
             onTimeUpdate={onTimeUpdate}
           />
-        </div>
-
-        {layout === 'split' && (
-          <div
-            className={`h-full flex flex-col border-l border-gray-800 relative ${activeScreen === 'right' ? 'z-10' : 'z-0'} w-1/2`}
-          >
-            {activeScreen === 'right' && (
-              <div className="absolute top-4 left-4 bg-purple-600 text-xs font-bold px-2 py-1 rounded z-20 pointer-events-none">
-                ACTIVE
-              </div>
-            )}
-            <VideoCanvas
-              ref={rightRef}
-              src={rightVideo}
-              tool={tool}
-              color={color}
-              lineWidth={lineWidth}
-              playbackRate={speed}
-              zoomLevel={zooms.right}
-              isActive={activeScreen === 'right'}
-              onActivate={() => setActiveScreen('right')}
-              onUpload={(e) => onUpload('right', e)}
-              onUrlUpload={() => onUrlUpload('right')}
-              onClear={() => onClearVideo('right')}
-              isSynced={sync}
-              onScrub={onLinkedScrub}
-              onTimeUpdate={onTimeUpdate}
-            />
-          </div>
         )}
       </main>
 
@@ -327,7 +314,7 @@ export default function AnalyzerView({
               </div>
             )}
             {/* Marker diamonds on timeline */}
-            {globalDuration > 0 && markers.map((m) => (
+            {globalDuration > 0 && activeMarkers.map((m) => (
               <button
                 key={m.index}
                 onClick={() => onJumpToMarker(m.index)}
@@ -343,7 +330,7 @@ export default function AnalyzerView({
         </div>
 
         <MarkerBar
-          markers={markers}
+          markers={activeMarkers}
           duration={globalDuration}
           currentTime={globalTime}
           onJumpTo={onJumpToMarker}

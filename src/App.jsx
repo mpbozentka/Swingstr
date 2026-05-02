@@ -2,17 +2,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
 
-import { DEFAULT_MARKER_LABELS } from './components/MarkerBar';
-import {
-  loadStudents,
-  saveStudents,
-  saveVideoBlob,
-  registerObjectUrl,
-  releaseObjectUrl,
-  releaseAllObjectUrls,
-} from './utils/storage';
-import { parseVideoUrl } from './utils/url';
+import { loadStudents, saveStudents, saveVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
+import { useVideoSources } from './hooks/useVideoSources';
+import { useMarkers } from './hooks/useMarkers';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -27,26 +20,21 @@ export default function Swingstr() {
   const [sync, setSync] = useState(false);
   const [activeScreen, setActiveScreen] = useState('left');
   const [isPlaying, setIsPlaying] = useState(false);
-
-  const [leftVideo, setLeftVideo] = useState(null);
-  const [rightVideo, setRightVideo] = useState(null);
-  // Hold the underlying File alongside the object URL so we can persist the
-  // raw bytes (not the dead blob URL) when saving to a student.
-  const [leftFile, setLeftFile] = useState(null);
-  const [rightFile, setRightFile] = useState(null);
   const [zooms, setZooms] = useState({ left: 1.0, right: 1.0 });
 
   const [globalTime, setGlobalTime] = useState(0);
   const [globalDuration, setGlobalDuration] = useState(0);
+  // Stable getter for the rAF-driven marker jump helpers; reading from this
+  // ref avoids re-creating the hook callbacks on every globalTime change.
+  const globalTimeRef = useRef(0);
+  useEffect(() => { globalTimeRef.current = globalTime; }, [globalTime]);
+  const getGlobalTime = useCallback(() => globalTimeRef.current, []);
 
   const [students, setStudents] = useState(() => loadStudents());
-
   const [saveData, setSaveData] = useState({ studentId: '', label: '' });
   const [editingStudent, setEditingStudent] = useState(null);
 
-  const [markers, setMarkers] = useState({ left: [], right: [] });
   const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
-
   const [tool, setTool] = useState('move');
   const [color, setColor] = useState('#ef4444');
   const [lineWidth, setLineWidth] = useState(3);
@@ -56,104 +44,31 @@ export default function Swingstr() {
   const leftRef = useRef();
   const rightRef = useRef();
 
+  const handleSourceClear = useCallback((side) => {
+    setSyncPoints((prev) => ({ ...prev, [side]: null }));
+    if (side === activeScreen) {
+      setGlobalTime(0);
+      setGlobalDuration(0);
+      setIsPlaying(false);
+    }
+  }, [activeScreen]);
+
+  const {
+    leftVideo, rightVideo, leftFile, rightFile,
+    handleUpload, handleUrlUpload, handleClearVideo,
+  } = useVideoSources({ onClear: handleSourceClear });
+
+  const {
+    markers,
+    setMarker: handleSetMarker,
+    removeMarker: handleRemoveMarker,
+    jumpTo: jumpToMarker,
+    jumpRelative: jumpRelativeMarker,
+  } = useMarkers({ leftRef, rightRef, getGlobalTime, setGlobalTime });
+
   // Debounced — every keystroke in a student's notes textarea would otherwise
   // serialize the whole CRM (#21).
   useDebouncedEffect(() => saveStudents(students), [students], 300);
-
-  // Revoke any outstanding blob URLs when the app unmounts so we don't leak
-  // memory across the tab's lifetime (#4).
-  useEffect(() => releaseAllObjectUrls, []);
-
-  const handleSetMarker = useCallback((side, index, time) => {
-    setMarkers((prev) => {
-      const sideMarkers = [...prev[side]];
-      const existing = sideMarkers.findIndex((m) => m.index === index);
-      const marker = {
-        id: newId(),
-        index,
-        time,
-        label: DEFAULT_MARKER_LABELS[index],
-      };
-      if (existing >= 0) {
-        sideMarkers[existing] = marker;
-      } else {
-        sideMarkers.push(marker);
-      }
-      return { ...prev, [side]: sideMarkers };
-    });
-  }, []);
-
-  const handleRemoveMarker = useCallback((side, index) => {
-    setMarkers((prev) => ({
-      ...prev,
-      [side]: prev[side].filter((m) => m.index !== index),
-    }));
-  }, []);
-
-  const jumpToMarker = useCallback((side, index) => {
-    const marker = markers[side].find((m) => m.index === index);
-    if (!marker) return;
-    const ref = side === 'left' ? leftRef : rightRef;
-    ref.current?.seekTo(marker.time);
-    setGlobalTime(marker.time);
-  }, [markers]);
-
-  const jumpToPrevMarker = useCallback(() => {
-    const sideMarkers = markers[activeScreen]
-      .filter((m) => m.time < globalTime - 0.05)
-      .sort((a, b) => b.time - a.time);
-    if (sideMarkers.length > 0) {
-      const m = sideMarkers[0];
-      const ref = activeScreen === 'left' ? leftRef : rightRef;
-      ref.current?.seekTo(m.time);
-      setGlobalTime(m.time);
-    }
-  }, [markers, activeScreen, globalTime]);
-
-  const jumpToNextMarker = useCallback(() => {
-    const sideMarkers = markers[activeScreen]
-      .filter((m) => m.time > globalTime + 0.05)
-      .sort((a, b) => a.time - b.time);
-    if (sideMarkers.length > 0) {
-      const m = sideMarkers[0];
-      const ref = activeScreen === 'left' ? leftRef : rightRef;
-      ref.current?.seekTo(m.time);
-      setGlobalTime(m.time);
-    }
-  }, [markers, activeScreen, globalTime]);
-
-  const handleUpload = useCallback((side, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = registerObjectUrl(`video:${side}`, file);
-    if (side === 'left') {
-      setLeftVideo(url);
-      setLeftFile(file);
-    } else {
-      setRightVideo(url);
-      setRightFile(file);
-    }
-  }, []);
-
-  const handleUrlUpload = useCallback((side) => {
-    const raw = prompt('Enter Direct Video URL (mp4/mov):');
-    if (!raw) return;
-    const url = parseVideoUrl(raw);
-    if (!url) {
-      alert('That URL is not a valid http(s) video URL.');
-      return;
-    }
-    // Remote URL — revoke any prior blob URL for this slot since we're switching
-    // to a non-blob source.
-    releaseObjectUrl(`video:${side}`);
-    if (side === 'left') {
-      setLeftVideo(url);
-      setLeftFile(null);
-    } else {
-      setRightVideo(url);
-      setRightFile(null);
-    }
-  }, []);
 
   const handleSetSyncPoint = useCallback((side) => {
     const ref = side === 'left' ? leftRef : rightRef;
@@ -165,7 +80,6 @@ export default function Swingstr() {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
   }, []);
 
-  // Compute sync offset when both sync points are set
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
 
@@ -195,23 +109,6 @@ export default function Swingstr() {
     return () => cancelAnimationFrame(frame);
   }, [sync, isPlaying, syncOffset]);
 
-  const handleClearVideo = useCallback((side) => {
-    releaseObjectUrl(`video:${side}`);
-    if (side === 'left') {
-      setLeftVideo(null);
-      setLeftFile(null);
-    } else {
-      setRightVideo(null);
-      setRightFile(null);
-    }
-    setSyncPoints((prev) => ({ ...prev, [side]: null }));
-    if (side === activeScreen) {
-      setGlobalTime(0);
-      setGlobalDuration(0);
-      setIsPlaying(false);
-    }
-  }, [activeScreen]);
-
   const adjustZoom = useCallback((delta) => {
     setZooms((prev) => {
       const current = prev[activeScreen];
@@ -230,12 +127,17 @@ export default function Swingstr() {
           const rightTarget = Math.max(0, leftTime - syncOffset);
           rightRef.current?.seekTo(rightTarget);
         }
-        newState
-          ? (leftRef.current?.play(), rightRef.current?.play())
-          : (leftRef.current?.pause(), rightRef.current?.pause());
+        if (newState) {
+          leftRef.current?.play();
+          rightRef.current?.play();
+        } else {
+          leftRef.current?.pause();
+          rightRef.current?.pause();
+        }
       } else {
         const target = activeScreen === 'left' ? leftRef : rightRef;
-        newState ? target.current?.play() : target.current?.pause();
+        if (newState) target.current?.play();
+        else target.current?.pause();
       }
       return newState;
     });
@@ -338,8 +240,6 @@ export default function Swingstr() {
 
     const handleKeyDown = (e) => {
       if (isTextish(document.activeElement)) return;
-      // Block setting/jumping on auto-repeat to avoid spamming the decoder
-      // (#9). Arrows/space still seek/toggle on repeat — that's expected.
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         seek(-0.05);
@@ -355,9 +255,9 @@ export default function Swingstr() {
         if (!e.repeat) togglePlay();
         return;
       }
+      // Block setting/jumping on auto-repeat to avoid spamming the decoder
+      // (#9). Arrow seeks above still respond to repeat.
       if (e.repeat) return;
-      // Marker shortcuts: 1-9,0 maps to index 0-9
-      // Shift+digit: set marker at current time, plain digit: jump to marker
       const shiftDigit = e.shiftKey && e.code?.match(/^Digit([0-9])$/);
       const digitMatch = e.key.match(/^[0-9]$/);
       if (shiftDigit) {
@@ -427,17 +327,17 @@ export default function Swingstr() {
       onLinkedScrub={handleLinkedScrub}
       showSequenceModal={showSequenceModal}
       setShowSequenceModal={setShowSequenceModal}
-      allMarkers={markers}
+      markers={markers}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
       onSetSyncPoint={handleSetSyncPoint}
       onClearSyncPoint={handleClearSyncPoint}
-      markers={markers[activeScreen]}
+      activeMarkers={markers[activeScreen]}
       onSetMarker={(index, time) => handleSetMarker(activeScreen, index, time)}
       onRemoveMarker={(index) => handleRemoveMarker(activeScreen, index)}
       onJumpToMarker={(index) => jumpToMarker(activeScreen, index)}
-      onPrevMarker={jumpToPrevMarker}
-      onNextMarker={jumpToNextMarker}
+      onPrevMarker={() => jumpRelativeMarker(activeScreen, -1)}
+      onNextMarker={() => jumpRelativeMarker(activeScreen, +1)}
       students={students}
       showSaveModal={showSaveModal}
       setShowSaveModal={setShowSaveModal}

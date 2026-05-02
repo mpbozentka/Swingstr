@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
-
-const DEFAULT_MARKER_LABELS = [
-  'Address', 'Takeaway', 'Halfway Back', 'Top', 'Transition',
-  'Downswing', 'Halfway Down', 'Impact', 'Follow-Through', 'Finish',
-];
-
-export { DEFAULT_MARKER_LABELS };
+import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 
 export default function MarkerBar({
   markers,

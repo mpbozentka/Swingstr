@@ -23,7 +23,13 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^[A-Z_]',
+        argsIgnorePattern: '^[A-Z_]',
+        // Destructure renames like `{ icon: Icon }` produce the binding "Icon"
+        // — the pattern above covers it via varsIgnorePattern.
+        ignoreRestSiblings: true,
+      }],
     },
   },
 ])

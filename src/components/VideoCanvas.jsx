@@ -24,8 +24,6 @@ const VideoCanvas = forwardRef(
       onUpload,
       onUrlUpload,
       onClear,
-      isSynced,
-      onScrub,
       onTimeUpdate,
     },
     ref
@@ -53,9 +51,6 @@ const VideoCanvas = forwardRef(
     // O(n) state rebuild per pointermove; the canvas redraws via `draw()` deps
     // which still pick up shape changes when the gesture commits. (#22)
     const livePointsRef = useRef(null);
-
-    const [currentTime, setCurrentTime] = useState(0);
-    const [duration, setDuration] = useState(0);
 
     /**
      * Compute the rect (in container/canvas pixels) where the video is
@@ -199,15 +194,12 @@ const VideoCanvas = forwardRef(
     }, [zoomLevel]);
 
     const handleTimeUpdate = () => {
-      if (videoRef.current) {
-        setCurrentTime(videoRef.current.currentTime);
-        if (isActive && onTimeUpdate) {
-          onTimeUpdate(videoRef.current.currentTime, videoRef.current.duration);
-        }
-      }
+      const v = videoRef.current;
+      if (v && isActive && onTimeUpdate) onTimeUpdate(v.currentTime, v.duration);
     };
     const handleLoadedMetadata = () => {
-      if (videoRef.current) setDuration(videoRef.current.duration);
+      const v = videoRef.current;
+      if (v && isActive && onTimeUpdate) onTimeUpdate(v.currentTime, v.duration);
     };
 
     const draw = useCallback(() => {

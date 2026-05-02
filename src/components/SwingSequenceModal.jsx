@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { X, Download, Loader2, LayoutGrid } from 'lucide-react';
-import { DEFAULT_MARKER_LABELS } from './MarkerBar';
+import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 import {
   generateSwingSequence,
   getEvenFrameTimes,
