@@ -2,6 +2,12 @@ import React from 'react';
 import { UserPlus, Pencil, Trash2, StickyNote } from 'lucide-react';
 import { Button } from './ui/Button';
 import EditStudentModal from './EditStudentModal';
+import { deleteVideoBlob } from '../utils/storage';
+
+const newId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function StudentLibrary({
   students,
@@ -11,7 +17,12 @@ export default function StudentLibrary({
   onBack,
 }) {
   const deleteStudent = (id) => {
-    if (confirm('Delete student?')) {
+    if (confirm('Delete student? Their saved videos will also be removed.')) {
+      const target = students.find((s) => s.id === id);
+      // Best-effort cleanup of any blobs this student owned.
+      target?.videos?.forEach((v) => {
+        if (v.videoId) deleteVideoBlob(v.videoId).catch(() => {});
+      });
       setStudents(students.filter((s) => s.id !== id));
     }
   };
@@ -69,7 +80,7 @@ export default function StudentLibrary({
                 e.preventDefault();
                 const formData = new FormData(e.target);
                 const newStudent = {
-                  id: Date.now(),
+                  id: newId(),
                   name: formData.get('name'),
                   email: formData.get('email'),
                   phone: formData.get('phone'),

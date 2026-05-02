@@ -3,18 +3,21 @@ import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
 
 import { DEFAULT_MARKER_LABELS } from './components/MarkerBar';
+import {
+  loadStudents,
+  saveStudents,
+  saveVideoBlob,
+  registerObjectUrl,
+  releaseObjectUrl,
+  releaseAllObjectUrls,
+} from './utils/storage';
+import { parseVideoUrl } from './utils/url';
+import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 
-const STORAGE_KEY = 'swingstr_students';
-const DEFAULT_STUDENTS = [
-  {
-    id: 1,
-    name: 'Demo Student',
-    email: 'demo@golf.com',
-    phone: '555-0123',
-    videos: [],
-    notes: 'Working on takeaway path.',
-  },
-];
+const newId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export default function Swingstr() {
   const [view, setView] = useState('analyze');
@@ -27,15 +30,16 @@ export default function Swingstr() {
 
   const [leftVideo, setLeftVideo] = useState(null);
   const [rightVideo, setRightVideo] = useState(null);
+  // Hold the underlying File alongside the object URL so we can persist the
+  // raw bytes (not the dead blob URL) when saving to a student.
+  const [leftFile, setLeftFile] = useState(null);
+  const [rightFile, setRightFile] = useState(null);
   const [zooms, setZooms] = useState({ left: 1.0, right: 1.0 });
 
   const [globalTime, setGlobalTime] = useState(0);
   const [globalDuration, setGlobalDuration] = useState(0);
 
-  const [students, setStudents] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_STUDENTS;
-  });
+  const [students, setStudents] = useState(() => loadStudents());
 
   const [saveData, setSaveData] = useState({ studentId: '', label: '' });
   const [editingStudent, setEditingStudent] = useState(null);
@@ -52,16 +56,20 @@ export default function Swingstr() {
   const leftRef = useRef();
   const rightRef = useRef();
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-  }, [students]);
+  // Debounced — every keystroke in a student's notes textarea would otherwise
+  // serialize the whole CRM (#21).
+  useDebouncedEffect(() => saveStudents(students), [students], 300);
+
+  // Revoke any outstanding blob URLs when the app unmounts so we don't leak
+  // memory across the tab's lifetime (#4).
+  useEffect(() => releaseAllObjectUrls, []);
 
   const handleSetMarker = useCallback((side, index, time) => {
     setMarkers((prev) => {
       const sideMarkers = [...prev[side]];
       const existing = sideMarkers.findIndex((m) => m.index === index);
       const marker = {
-        id: Date.now(),
+        id: newId(),
         index,
         time,
         label: DEFAULT_MARKER_LABELS[index],
@@ -115,17 +123,35 @@ export default function Swingstr() {
   }, [markers, activeScreen, globalTime]);
 
   const handleUpload = useCallback((side, e) => {
-    if (!e.target.files?.[0]) return;
-    const url = URL.createObjectURL(e.target.files[0]);
-    if (side === 'left') setLeftVideo(url);
-    else setRightVideo(url);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = registerObjectUrl(`video:${side}`, file);
+    if (side === 'left') {
+      setLeftVideo(url);
+      setLeftFile(file);
+    } else {
+      setRightVideo(url);
+      setRightFile(file);
+    }
   }, []);
 
   const handleUrlUpload = useCallback((side) => {
-    const url = prompt('Enter Direct Video URL (mp4/mov):');
-    if (url) {
-      if (side === 'left') setLeftVideo(url);
-      else setRightVideo(url);
+    const raw = prompt('Enter Direct Video URL (mp4/mov):');
+    if (!raw) return;
+    const url = parseVideoUrl(raw);
+    if (!url) {
+      alert('That URL is not a valid http(s) video URL.');
+      return;
+    }
+    // Remote URL — revoke any prior blob URL for this slot since we're switching
+    // to a non-blob source.
+    releaseObjectUrl(`video:${side}`);
+    if (side === 'left') {
+      setLeftVideo(url);
+      setLeftFile(null);
+    } else {
+      setRightVideo(url);
+      setRightFile(null);
     }
   }, []);
 
@@ -144,8 +170,14 @@ export default function Swingstr() {
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
 
   const handleClearVideo = useCallback((side) => {
-    if (side === 'left') setLeftVideo(null);
-    else setRightVideo(null);
+    releaseObjectUrl(`video:${side}`);
+    if (side === 'left') {
+      setLeftVideo(null);
+      setLeftFile(null);
+    } else {
+      setRightVideo(null);
+      setRightFile(null);
+    }
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
     if (side === activeScreen) {
       setGlobalTime(0);
@@ -240,42 +272,64 @@ export default function Swingstr() {
     }
   }, [sync, activeScreen, hasSyncOffset, syncOffset]);
 
-  const saveToStudent = useCallback(() => {
+  const saveToStudent = useCallback(async () => {
     if (!saveData.studentId || !saveData.label) return;
+    const targetFile = activeScreen === 'left' ? leftFile : rightFile;
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
-    if (targetVideo) {
-      const newVideo = {
-        id: Date.now(),
-        label: saveData.label,
-        date: new Date().toLocaleDateString(),
-        url: targetVideo,
-      };
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === parseInt(saveData.studentId, 10)
-            ? { ...s, videos: [...(s.videos || []), newVideo] }
-            : s
-        )
-      );
-      setShowSaveModal(false);
-      setSaveData({ studentId: '', label: '' });
-      alert('Saved!');
+    if (!targetVideo) return;
+
+    const videoId = newId();
+    // Local file uploads get persisted to IndexedDB so they survive a refresh.
+    // Remote http(s) URLs are stored as-is — there's no Blob to keep.
+    const record = targetFile
+      ? { id: videoId, label: saveData.label, date: new Date().toLocaleDateString(), videoId, source: 'idb' }
+      : { id: videoId, label: saveData.label, date: new Date().toLocaleDateString(), remoteUrl: targetVideo, source: 'remote' };
+
+    if (targetFile) {
+      try {
+        await saveVideoBlob(videoId, targetFile);
+      } catch (err) {
+        console.warn('[saveToStudent] IndexedDB write failed', err);
+        alert("Couldn't save the video locally. The browser may be in private mode or out of storage.");
+        return;
+      }
     }
-  }, [saveData, activeScreen, leftVideo, rightVideo]);
+
+    setStudents((prev) =>
+      prev.map((s) =>
+        s.id === saveData.studentId
+          ? { ...s, videos: [...(s.videos || []), record] }
+          : s
+      )
+    );
+    setShowSaveModal(false);
+    setSaveData({ studentId: '', label: '' });
+  }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo]);
 
   useEffect(() => {
+    const isTextish = (el) =>
+      !!el && (el.matches?.(':where(input, textarea, select, [contenteditable=""], [contenteditable="true"])') ?? false);
+
     const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (isTextish(document.activeElement)) return;
+      // Block setting/jumping on auto-repeat to avoid spamming the decoder
+      // (#9). Arrows/space still seek/toggle on repeat — that's expected.
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         seek(-0.05);
-      } else if (e.key === 'ArrowRight') {
+        return;
+      }
+      if (e.key === 'ArrowRight') {
         e.preventDefault();
         seek(0.05);
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        togglePlay();
+        return;
       }
+      if (e.key === ' ') {
+        e.preventDefault();
+        if (!e.repeat) togglePlay();
+        return;
+      }
+      if (e.repeat) return;
       // Marker shortcuts: 1-9,0 maps to index 0-9
       // Shift+digit: set marker at current time, plain digit: jump to marker
       const shiftDigit = e.shiftKey && e.code?.match(/^Digit([0-9])$/);
