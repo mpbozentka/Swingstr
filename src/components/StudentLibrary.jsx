@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserPlus, Pencil, Trash2, StickyNote } from 'lucide-react';
 import { Button } from './ui/Button';
 import EditStudentModal from './EditStudentModal';
+import ConfirmDialog from './ConfirmDialog';
 import { deleteVideoBlob } from '../utils/storage';
 
 const newId = () =>
@@ -15,16 +16,20 @@ export default function StudentLibrary({
   editingStudent,
   setEditingStudent,
   onBack,
+  onToast,
 }) {
-  const deleteStudent = (id) => {
-    if (confirm('Delete student? Their saved videos will also be removed.')) {
-      const target = students.find((s) => s.id === id);
-      // Best-effort cleanup of any blobs this student owned.
-      target?.videos?.forEach((v) => {
-        if (v.videoId) deleteVideoBlob(v.videoId).catch(() => {});
-      });
-      setStudents(students.filter((s) => s.id !== id));
-    }
+  const [pendingDelete, setPendingDelete] = useState(null);
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    const target = students.find((s) => s.id === pendingDelete.id);
+    // Best-effort cleanup of any blobs this student owned.
+    target?.videos?.forEach((v) => {
+      if (v.videoId) deleteVideoBlob(v.videoId).catch(() => {});
+    });
+    setStudents(students.filter((s) => s.id !== pendingDelete.id));
+    setPendingDelete(null);
+    onToast?.({ message: `Deleted ${target?.name ?? 'student'}.`, kind: 'info' });
   };
 
   const saveEditedStudent = (e) => {
@@ -54,6 +59,13 @@ export default function StudentLibrary({
         student={editingStudent}
         onSave={saveEditedStudent}
         onClose={() => setEditingStudent(null)}
+      />
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={pendingDelete ? `Delete ${pendingDelete.name}?` : ''}
+        message="Their saved videos will also be removed. This can't be undone."
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
       />
       <header className="h-16 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-800">
         <div className="flex items-center gap-3">
@@ -137,7 +149,8 @@ export default function StudentLibrary({
                       <Pencil size={16} />
                     </button>
                     <button
-                      onClick={() => deleteStudent(student.id)}
+                      onClick={() => setPendingDelete({ id: student.id, name: student.name })}
+                      aria-label={`Delete ${student.name}`}
                       className="p-2 bg-red-900/50 hover:bg-red-600 rounded text-red-200"
                     >
                       <Trash2 size={16} />

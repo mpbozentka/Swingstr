@@ -40,16 +40,16 @@ export function useVideoSources({ onClear } = {}) {
     setSource(side, url, file);
   }, []);
 
-  const uploadUrl = useCallback((side) => {
-    const raw = prompt('Enter Direct Video URL (mp4/mov):');
-    if (!raw) return;
+  /**
+   * Accepts a raw URL string from the parent (which owns the prompt UI) and
+   * returns either an error string (caller surfaces it) or null on success.
+   */
+  const uploadUrl = useCallback((side, raw) => {
     const url = parseVideoUrl(raw);
-    if (!url) {
-      alert('That URL is not a valid http(s) video URL.');
-      return;
-    }
+    if (!url) return { error: 'Not a valid http(s) video URL.' };
     releaseObjectUrl(`video:${side}`);
     setSource(side, url, null);
+    return null;
   }, []);
 
   const clear = useCallback((side) => {

@@ -1,8 +1,15 @@
 {
   "name": "swingstr",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "description": "Privacy-focused golf swing analysis for instructors — split-screen video, telestration, swing-sequence export, and a lightweight student CRM.",
+  "homepage": "https://github.com/mpbozentka/Swingstr",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mpbozentka/Swingstr.git"
+  },
+  "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
+import Toast from './components/Toast';
+import UrlPromptModal from './components/UrlPromptModal';
 
 import { loadStudents, saveStudents, saveVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
@@ -35,6 +37,9 @@ export default function Swingstr() {
   const [editingStudent, setEditingStudent] = useState(null);
 
   const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
+  const [toast, setToast] = useState(null); // { message, kind }
+  // Side currently waiting on a URL input (null when modal closed)
+  const [urlPromptSide, setUrlPromptSide] = useState(null);
   const [tool, setTool] = useState('move');
   const [color, setColor] = useState('#ef4444');
   const [lineWidth, setLineWidth] = useState(3);
@@ -55,8 +60,19 @@ export default function Swingstr() {
 
   const {
     leftVideo, rightVideo, leftFile, rightFile,
-    handleUpload, handleUrlUpload, handleClearVideo,
+    handleUpload, handleUrlUpload: setUrlSource, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
+
+  const requestUrlUpload = useCallback((side) => {
+    setUrlPromptSide(side);
+  }, []);
+
+  const handleUrlSubmit = useCallback((raw) => {
+    if (!urlPromptSide) return null;
+    const result = setUrlSource(urlPromptSide, raw);
+    if (!result) setUrlPromptSide(null);
+    return result;
+  }, [urlPromptSide, setUrlSource]);
 
   const {
     markers,
@@ -218,7 +234,7 @@ export default function Swingstr() {
         await saveVideoBlob(videoId, targetFile);
       } catch (err) {
         console.warn('[saveToStudent] IndexedDB write failed', err);
-        alert("Couldn't save the video locally. The browser may be in private mode or out of storage.");
+        setToast({ message: "Couldn't save locally — browser may be in private mode or out of space.", kind: 'error' });
         return;
       }
     }
@@ -232,6 +248,7 @@ export default function Swingstr() {
     );
     setShowSaveModal(false);
     setSaveData({ studentId: '', label: '' });
+    setToast({ message: 'Saved to student library.', kind: 'success' });
   }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo]);
 
   useEffect(() => {
@@ -274,19 +291,32 @@ export default function Swingstr() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [seek, togglePlay, handleSetMarker, jumpToMarker, activeScreen, globalTime]);
 
+  const toastEl = (
+    <Toast
+      message={toast?.message}
+      kind={toast?.kind}
+      onDismiss={() => setToast(null)}
+    />
+  );
+
   if (view === 'library') {
     return (
-      <StudentLibrary
-        students={students}
-        setStudents={setStudents}
-        editingStudent={editingStudent}
-        setEditingStudent={setEditingStudent}
-        onBack={() => setView('analyze')}
-      />
+      <>
+        <StudentLibrary
+          students={students}
+          setStudents={setStudents}
+          editingStudent={editingStudent}
+          setEditingStudent={setEditingStudent}
+          onBack={() => setView('analyze')}
+          onToast={(t) => setToast(t)}
+        />
+        {toastEl}
+      </>
     );
   }
 
   return (
+    <>
     <AnalyzerView
       onOpenLibrary={() => setView('library')}
       layout={layout}
@@ -302,7 +332,7 @@ export default function Swingstr() {
       leftVideo={leftVideo}
       rightVideo={rightVideo}
       onUpload={handleUpload}
-      onUrlUpload={handleUrlUpload}
+      onUrlUpload={requestUrlUpload}
       onClearVideo={handleClearVideo}
       tool={tool}
       setTool={setTool}
@@ -345,5 +375,12 @@ export default function Swingstr() {
       setSaveData={setSaveData}
       saveToStudent={saveToStudent}
     />
+    <UrlPromptModal
+      open={!!urlPromptSide}
+      onSubmit={handleUrlSubmit}
+      onClose={() => setUrlPromptSide(null)}
+    />
+    {toastEl}
+    </>
   );
 }
