@@ -6,7 +6,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import { Upload, X, Globe } from 'lucide-react';
+import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
@@ -23,6 +23,8 @@ const VideoCanvas = forwardRef(
       onActivate,
       onUpload,
       onUrlUpload,
+      onDriveUpload,
+      isSignedIn,
       onClear,
       onTimeUpdate,
     },
@@ -495,6 +497,20 @@ const VideoCanvas = forwardRef(
                 <Globe size={24} />
                 <span className="font-medium">Load from URL</span>
               </button>
+              {isSignedIn && onDriveUpload && (
+                <>
+                  <div className="flex items-center gap-2 text-sm opacity-50">
+                    <span>or</span>
+                  </div>
+                  <button
+                    onClick={onDriveUpload}
+                    className="flex items-center gap-2 hover:text-purple-400 transition-colors"
+                  >
+                    <HardDrive size={24} />
+                    <span className="font-medium">Browse Google Drive</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
           {src && (

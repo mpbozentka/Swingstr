@@ -31,6 +31,8 @@ import SpeedMenu from './SpeedMenu';
 import SaveModal from './SaveModal';
 import MarkerBar from './MarkerBar';
 import SwingSequenceModal from './SwingSequenceModal';
+import GoogleAuthButton from './GoogleAuthButton';
+import DrivePickerModal from './DrivePickerModal';
 
 export default function AnalyzerView({
   onOpenLibrary,
@@ -89,12 +91,29 @@ export default function AnalyzerView({
   saveData,
   setSaveData,
   saveToStudent,
+  isSignedIn,
+  userEmail,
+  accessToken,
+  onSignIn,
+  onSignOut,
+  onDriveLoad,
 }) {
+  const [drivePickerSide, setDrivePickerSide] = React.useState(null);
   return (
     <div
       className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative"
       onClick={() => setActiveMenu(null)}
     >
+      <DrivePickerModal
+        open={!!drivePickerSide}
+        accessToken={accessToken}
+        onLoadVideo={(side, blob, fileId, fileName) => {
+          onDriveLoad(side, blob, fileId, fileName);
+          setDrivePickerSide(null);
+        }}
+        onClose={() => setDrivePickerSide(null)}
+      />
+
       <SaveModal
         show={showSaveModal}
         onClose={() => setShowSaveModal(false)}
@@ -225,7 +244,13 @@ export default function AnalyzerView({
             </>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <GoogleAuthButton
+            isSignedIn={isSignedIn}
+            userEmail={userEmail}
+            onSignIn={onSignIn}
+            onSignOut={onSignOut}
+          />
           <Button onClick={() => adjustZoom(-0.2)} title="Zoom out" aria-label="Zoom out">
             <ZoomOut size={18} />
           </Button>
@@ -253,6 +278,8 @@ export default function AnalyzerView({
           onActivate={() => setActiveScreen('left')}
           onUpload={(e) => onUpload('left', e)}
           onUrlUpload={() => onUrlUpload('left')}
+          onDriveUpload={() => setDrivePickerSide('left')}
+          isSignedIn={isSignedIn}
           onClear={() => onClearVideo('left')}
           isSynced={sync}
           onScrub={onLinkedScrub}
@@ -275,6 +302,8 @@ export default function AnalyzerView({
             onActivate={() => setActiveScreen('right')}
             onUpload={(e) => onUpload('right', e)}
             onUrlUpload={() => onUrlUpload('right')}
+            onDriveUpload={() => setDrivePickerSide('right')}
+            isSignedIn={isSignedIn}
             onClear={() => onClearVideo('right')}
             isSynced={sync}
             onScrub={onLinkedScrub}

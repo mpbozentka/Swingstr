@@ -8,6 +8,7 @@ import { loadStudents, saveStudents, saveVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
+import { useGoogleAuth } from './hooks/useGoogleAuth';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -58,9 +59,12 @@ export default function Swingstr() {
     }
   }, [activeScreen]);
 
+  const googleAuth = useGoogleAuth();
+
   const {
     leftVideo, rightVideo, leftFile, rightFile,
-    handleUpload, handleUrlUpload: setUrlSource, handleClearVideo,
+    leftDriveFileId, rightDriveFileId,
+    handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
 
   const requestUrlUpload = useCallback((side) => {
@@ -220,14 +224,18 @@ export default function Swingstr() {
     if (!saveData.studentId || !saveData.label) return;
     const targetFile = activeScreen === 'left' ? leftFile : rightFile;
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
+    const targetDriveFileId = activeScreen === 'left' ? leftDriveFileId : rightDriveFileId;
     if (!targetVideo) return;
 
     const videoId = newId();
-    // Local file uploads get persisted to IndexedDB so they survive a refresh.
-    // Remote http(s) URLs are stored as-is — there's no Blob to keep.
-    const record = targetFile
-      ? { id: videoId, label: saveData.label, date: new Date().toLocaleDateString(), videoId, source: 'idb' }
-      : { id: videoId, label: saveData.label, date: new Date().toLocaleDateString(), remoteUrl: targetVideo, source: 'remote' };
+    const baseRecord = { id: videoId, label: saveData.label, date: new Date().toLocaleDateString() };
+    // Drive videos store only the file ID — re-fetched from Drive on demand.
+    // Local uploads go to IndexedDB. Remote URLs stored as-is.
+    const record = targetDriveFileId
+      ? { ...baseRecord, driveFileId: targetDriveFileId, source: 'drive' }
+      : targetFile
+        ? { ...baseRecord, videoId, source: 'idb' }
+        : { ...baseRecord, remoteUrl: targetVideo, source: 'remote' };
 
     if (targetFile) {
       try {
@@ -249,7 +257,7 @@ export default function Swingstr() {
     setShowSaveModal(false);
     setSaveData({ studentId: '', label: '' });
     setToast({ message: 'Saved to student library.', kind: 'success' });
-  }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo]);
+  }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 
   useEffect(() => {
     const isTextish = (el) =>
@@ -309,6 +317,9 @@ export default function Swingstr() {
           setEditingStudent={setEditingStudent}
           onBack={() => setView('analyze')}
           onToast={(t) => setToast(t)}
+          isSignedIn={googleAuth.isSignedIn}
+          accessToken={googleAuth.accessToken}
+          onDriveLoad={handleDriveLoad}
         />
         {toastEl}
       </>
@@ -374,6 +385,12 @@ export default function Swingstr() {
       saveData={saveData}
       setSaveData={setSaveData}
       saveToStudent={saveToStudent}
+      isSignedIn={googleAuth.isSignedIn}
+      userEmail={googleAuth.userEmail}
+      accessToken={googleAuth.accessToken}
+      onSignIn={googleAuth.signIn}
+      onSignOut={googleAuth.signOut}
+      onDriveLoad={handleDriveLoad}
     />
     <UrlPromptModal
       open={!!urlPromptSide}

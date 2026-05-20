@@ -20,6 +20,8 @@ export function useVideoSources({ onClear } = {}) {
   const [right, setRight] = useState(null);
   const [leftFile, setLeftFile] = useState(null);
   const [rightFile, setRightFile] = useState(null);
+  const [leftDriveFileId, setLeftDriveFileId] = useState(null);
+  const [rightDriveFileId, setRightDriveFileId] = useState(null);
 
   useEffect(() => releaseAllObjectUrls, []);
 
@@ -52,9 +54,18 @@ export function useVideoSources({ onClear } = {}) {
     return null;
   }, []);
 
+  const loadDriveVideo = useCallback((side, blob, driveFileId) => {
+    const url = registerObjectUrl(`video:${side}`, blob);
+    setSource(side, url, null);
+    if (side === 'left') setLeftDriveFileId(driveFileId);
+    else setRightDriveFileId(driveFileId);
+  }, []);
+
   const clear = useCallback((side) => {
     releaseObjectUrl(`video:${side}`);
     setSource(side, null, null);
+    if (side === 'left') setLeftDriveFileId(null);
+    else setRightDriveFileId(null);
     onClear?.(side);
   }, [onClear]);
 
@@ -63,8 +74,11 @@ export function useVideoSources({ onClear } = {}) {
     rightVideo: right,
     leftFile,
     rightFile,
+    leftDriveFileId,
+    rightDriveFileId,
     handleUpload: uploadFile,
     handleUrlUpload: uploadUrl,
+    handleDriveLoad: loadDriveVideo,
     handleClearVideo: clear,
   };
 }

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { UserPlus, Pencil, Trash2, StickyNote } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, StickyNote, HardDrive } from 'lucide-react';
 import { Button } from './ui/Button';
 import EditStudentModal from './EditStudentModal';
 import ConfirmDialog from './ConfirmDialog';
+import DrivePickerModal from './DrivePickerModal';
 import { deleteVideoBlob } from '../utils/storage';
+import { parseDriveFolderId } from '../hooks/useGoogleDrive';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -17,8 +19,12 @@ export default function StudentLibrary({
   setEditingStudent,
   onBack,
   onToast,
+  isSignedIn,
+  accessToken,
+  onDriveLoad,
 }) {
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [drivePickerStudent, setDrivePickerStudent] = useState(null);
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
@@ -35,11 +41,14 @@ export default function StudentLibrary({
   const saveEditedStudent = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const rawFolder = formData.get('driveFolderInput')?.trim() || '';
+    const driveFolderId = rawFolder ? (parseDriveFolderId(rawFolder) ?? editingStudent.driveFolderId ?? null) : null;
     const updated = {
       ...editingStudent,
       name: formData.get('name'),
       email: formData.get('email'),
       phone: formData.get('phone'),
+      driveFolderId,
     };
     setStudents(
       students.map((s) => (s.id === editingStudent.id ? updated : s))
@@ -55,6 +64,17 @@ export default function StudentLibrary({
 
   return (
     <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative">
+      <DrivePickerModal
+        open={!!drivePickerStudent}
+        accessToken={accessToken}
+        initialFolderId={drivePickerStudent?.driveFolderId}
+        onLoadVideo={(side, blob, fileId) => {
+          onDriveLoad?.(side, blob, fileId);
+          setDrivePickerStudent(null);
+          onBack();
+        }}
+        onClose={() => setDrivePickerStudent(null)}
+      />
       <EditStudentModal
         student={editingStudent}
         onSave={saveEditedStudent}
@@ -141,9 +161,20 @@ export default function StudentLibrary({
                       {student.email} • {student.phone}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
+                    {isSignedIn && student.driveFolderId && (
+                      <button
+                        onClick={() => setDrivePickerStudent(student)}
+                        title="Browse this student's Google Drive videos"
+                        className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-xs font-medium"
+                      >
+                        <HardDrive size={14} />
+                        Browse Videos
+                      </button>
+                    )}
                     <button
                       onClick={() => setEditingStudent(student)}
+                      aria-label={`Edit ${student.name}`}
                       className="p-2 bg-gray-600 hover:bg-gray-500 rounded"
                     >
                       <Pencil size={16} />

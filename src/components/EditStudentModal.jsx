@@ -1,5 +1,6 @@
 import React from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
+import { parseDriveFolderId } from '../hooks/useGoogleDrive';
 
 export default function EditStudentModal({ student, onSave, onClose }) {
   useEscapeClose(!!student, onClose);
@@ -36,6 +37,15 @@ export default function EditStudentModal({ student, onSave, onClose }) {
             placeholder="Phone"
             className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2"
           />
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Google Drive Folder (optional)</label>
+            <input
+              name="driveFolderInput"
+              defaultValue={student.driveFolderId || ''}
+              placeholder="Paste Drive folder URL or ID"
+              className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm"
+            />
+          </div>
           <button
             type="submit"
             className="w-full bg-purple-600 py-2 rounded font-bold hover:bg-purple-500"
