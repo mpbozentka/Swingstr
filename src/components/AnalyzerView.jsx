@@ -152,26 +152,27 @@ export default function AnalyzerView({
         )}
       </div>
 
-      <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
+      <header className="min-h-14 bg-gray-900 border-b border-gray-800 flex flex-wrap items-center justify-between gap-y-2 py-2 sm:py-0 px-3 sm:px-4 shrink-0 z-20">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
             <img
               src="/swingstr-logo.jpg"
               alt="Swingstr"
-              className="h-10 w-10 rounded-full border-2 border-purple-500 object-cover"
+              className="h-8 w-8 sm:h-10 sm:w-10 rounded-full border-2 border-purple-500 object-cover"
               onError={(e) => {
                 e.target.style.display = 'none';
               }}
             />
-            <h1 className="font-bold text-lg tracking-tight text-white">
+            <h1 className="font-bold text-base sm:text-lg tracking-tight text-white">
               Swing<span className="text-purple-500">str</span>
             </h1>
           </div>
           <button
             onClick={onOpenLibrary}
-            className="text-xs bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 flex items-center gap-1 border border-gray-700"
+            aria-label="Student Library"
+            className="text-xs bg-gray-800 px-2.5 sm:px-3 py-1.5 rounded-full hover:bg-gray-700 flex items-center gap-1 border border-gray-700"
           >
-            <Users size={12} /> Student Library
+            <Users size={12} /> <span className="hidden sm:inline">Student Library</span>
           </button>
         </div>
         <div className="flex items-center gap-4">
@@ -244,7 +245,7 @@ export default function AnalyzerView({
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           <GoogleAuthButton
             isSignedIn={isSignedIn}
             userEmail={userEmail}
@@ -254,7 +255,7 @@ export default function AnalyzerView({
           <Button onClick={() => adjustZoom(-0.2)} title="Zoom out" aria-label="Zoom out">
             <ZoomOut size={18} />
           </Button>
-          <span className="w-12 text-center font-mono text-sm text-purple-400 font-bold" aria-live="polite">
+          <span className="w-10 sm:w-12 text-center font-mono text-sm text-purple-400 font-bold" aria-live="polite">
             {zooms[activeScreen].toFixed(1)}x
           </span>
           <Button onClick={() => adjustZoom(0.2)} title="Zoom in" aria-label="Zoom in">
@@ -374,44 +375,9 @@ export default function AnalyzerView({
           onNext={onNextMarker}
         />
 
-        <div className="flex items-center justify-between px-4 py-2 h-14">
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <IconButton
-              onClick={() => setTool('move')}
-              active={tool === 'move'}
-              title="Move/Pan"
-            >
-              <MousePointer2 size={20} />
-            </IconButton>
-            <div className="w-px h-8 bg-gray-700 mx-1" />
-
-            <MenuButton
-              icon={PenTool}
-              label="Drawing"
-              active={['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'].includes(tool)}
-              isOpen={activeMenu === 'tools'}
-              onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')}
-            />
-
-            <MenuButton
-              icon={Palette}
-              label="Style"
-              active={false}
-              isOpen={activeMenu === 'style'}
-              onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')}
-            />
-
-            <div className="w-px h-8 bg-gray-700 mx-1" />
-            <IconButton
-              onClick={clearShapes}
-              title="Clear All"
-              className="text-red-400 hover:bg-red-900/30"
-            >
-              <Trash2 size={20} />
-            </IconButton>
-          </div>
-
-          <div className="flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between px-2 sm:px-4 py-2 gap-3 sm:gap-0 sm:h-14">
+          {/* Playback transport — own centered row on mobile, absolutely centered on desktop */}
+          <div className="flex items-center justify-center gap-8 sm:gap-4 order-1 sm:order-none sm:absolute sm:left-1/2 sm:-translate-x-1/2">
             <button
               onClick={() => seek(-0.05)}
               aria-label="Previous frame"
@@ -443,30 +409,69 @@ export default function AnalyzerView({
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <MenuButton
-              icon={Gauge}
-              label={`${speed}x`}
-              active={false}
-              isOpen={activeMenu === 'speed'}
-              onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')}
-            />
-            <IconButton onClick={onSnapshot} title="Snapshot">
-              <Camera size={20} />
-            </IconButton>
-            <IconButton
-              onClick={() => setShowSequenceModal(true)}
-              title="Swing Sequence Export"
-            >
-              <LayoutGrid size={20} />
-            </IconButton>
-            <IconButton
-              onClick={openSaveModal}
-              title="Save to Student"
-              className="text-purple-400 hover:text-purple-200"
-            >
-              <Save size={20} />
-            </IconButton>
+          {/* Tool buttons — single wrapping row on mobile; restored to left/right groups on desktop */}
+          <div className="flex items-center justify-center flex-wrap gap-1 sm:gap-2 order-2 sm:order-none sm:contents">
+            <div className="flex items-center gap-1 sm:gap-2" onClick={(e) => e.stopPropagation()}>
+              <IconButton
+                onClick={() => setTool('move')}
+                active={tool === 'move'}
+                title="Move/Pan"
+              >
+                <MousePointer2 size={20} />
+              </IconButton>
+              <div className="w-px h-8 bg-gray-700 mx-1" />
+
+              <MenuButton
+                icon={PenTool}
+                label="Drawing"
+                active={['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'].includes(tool)}
+                isOpen={activeMenu === 'tools'}
+                onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')}
+              />
+
+              <MenuButton
+                icon={Palette}
+                label="Style"
+                active={false}
+                isOpen={activeMenu === 'style'}
+                onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')}
+              />
+
+              <div className="w-px h-8 bg-gray-700 mx-1" />
+              <IconButton
+                onClick={clearShapes}
+                title="Clear All"
+                className="text-red-400 hover:bg-red-900/30"
+              >
+                <Trash2 size={20} />
+              </IconButton>
+            </div>
+
+            <div className="flex items-center gap-1 sm:gap-2">
+              <MenuButton
+                icon={Gauge}
+                label={`${speed}x`}
+                active={false}
+                isOpen={activeMenu === 'speed'}
+                onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')}
+              />
+              <IconButton onClick={onSnapshot} title="Snapshot">
+                <Camera size={20} />
+              </IconButton>
+              <IconButton
+                onClick={() => setShowSequenceModal(true)}
+                title="Swing Sequence Export"
+              >
+                <LayoutGrid size={20} />
+              </IconButton>
+              <IconButton
+                onClick={openSaveModal}
+                title="Save to Student"
+                className="text-purple-400 hover:text-purple-200"
+              >
+                <Save size={20} />
+              </IconButton>
+            </div>
           </div>
         </div>
       </footer>
