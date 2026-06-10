@@ -43,7 +43,7 @@ export default function DrivePickerModal({
       setFolderStack((prev) => [...prev, { id, name }]);
       // Remember this as the home folder (only when browsing from the generic picker)
       if (!initialFolderId) {
-        try { localStorage.setItem(LS_HOME_KEY, JSON.stringify({ id, name })); } catch {}
+        try { localStorage.setItem(LS_HOME_KEY, JSON.stringify({ id, name })); } catch { /* remembering home folder is best-effort */ }
       }
     } catch (err) {
       setListError(err.message === 'SESSION_EXPIRED'
@@ -71,7 +71,7 @@ export default function DrivePickerModal({
         loadFolder(id, name);
         return;
       }
-    } catch {}
+    } catch { /* corrupt saved folder — fall through to the URL input */ }
     // Nothing saved — show the URL input
     setShowInput(true);
   }, [open, initialFolderId, folderStack.length, loadFolder]);
@@ -109,6 +109,15 @@ export default function DrivePickerModal({
       }
       return next;
     });
+  };
+
+  // Drop the remembered home folder and return to the paste-a-folder prompt.
+  const forgetHomeFolder = () => {
+    try { localStorage.removeItem(LS_HOME_KEY); } catch { /* best-effort */ }
+    setFolderStack([]);
+    setItems([]);
+    setListError(null);
+    setShowInput(true);
   };
 
   const handleLoadVideo = async (side, file) => {
@@ -168,16 +177,24 @@ export default function DrivePickerModal({
           </div>
           <div className="flex items-center gap-2">
             {!initialFolderId && folderStack.length > 0 && !showInput && (
-              <button
-                onClick={() => {
-                  setFolderStack([]);
-                  setItems([]);
-                  setShowInput(true);
-                }}
-                className="text-xs text-gray-500 hover:text-gray-300"
-              >
-                Change folder
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    setFolderStack([]);
+                    setItems([]);
+                    setShowInput(true);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  Change folder
+                </button>
+                <button
+                  onClick={forgetHomeFolder}
+                  className="text-xs text-gray-500 hover:text-gray-300"
+                >
+                  Forget this folder
+                </button>
+              </>
             )}
             <button
               onClick={onClose}

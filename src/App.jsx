@@ -4,11 +4,12 @@ import AnalyzerView from './components/AnalyzerView';
 import Toast from './components/Toast';
 import UrlPromptModal from './components/UrlPromptModal';
 
-import { loadStudents, saveStudents, saveVideoBlob } from './utils/storage';
+import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
+import { useGoogleDrive } from './hooks/useGoogleDrive';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -64,8 +65,50 @@ export default function Swingstr() {
   const {
     leftVideo, rightVideo, leftFile, rightFile,
     leftDriveFileId, rightDriveFileId,
-    handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleClearVideo,
+    handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleBlobLoad, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
+
+  const { streamFile } = useGoogleDrive(googleAuth.accessToken);
+
+  // Load a video record saved in a student's library back into the analyzer.
+  const loadSavedVideo = useCallback(async (side, record) => {
+    try {
+      if (record.driveFileId) {
+        if (!googleAuth.isSignedIn) {
+          setToast({ message: 'Sign in with Google to load this Drive video.', kind: 'error' });
+          return false;
+        }
+        const blob = await streamFile(record.driveFileId);
+        handleDriveLoad(side, blob, record.driveFileId);
+      } else if (record.remoteUrl) {
+        const result = setUrlSource(side, record.remoteUrl);
+        if (result?.error) {
+          setToast({ message: result.error, kind: 'error' });
+          return false;
+        }
+      } else {
+        const blob = await loadVideoBlob(record.videoId ?? record.id);
+        if (!blob) {
+          setToast({ message: 'Video not found in browser storage — it may have been cleared.', kind: 'error' });
+          return false;
+        }
+        handleBlobLoad(side, blob);
+      }
+      if (side === 'right') setLayout('split');
+      setActiveScreen(side);
+      setView('analyze');
+      return true;
+    } catch (err) {
+      console.warn('[loadSavedVideo] failed', err);
+      setToast({
+        message: err.message === 'SESSION_EXPIRED'
+          ? 'Google session expired — sign out and sign in again.'
+          : `Couldn't load video: ${err.message}`,
+        kind: 'error',
+      });
+      return false;
+    }
+  }, [googleAuth.isSignedIn, streamFile, handleDriveLoad, setUrlSource, handleBlobLoad]);
 
   const requestUrlUpload = useCallback((side) => {
     setUrlPromptSide(side);
@@ -221,11 +264,14 @@ export default function Swingstr() {
   }, [sync, activeScreen, hasSyncOffset, syncOffset]);
 
   const saveToStudent = useCallback(async () => {
-    if (!saveData.studentId || !saveData.label) return;
+    if (!saveData.studentId || !saveData.label.trim()) return;
     const targetFile = activeScreen === 'left' ? leftFile : rightFile;
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
     const targetDriveFileId = activeScreen === 'left' ? leftDriveFileId : rightDriveFileId;
-    if (!targetVideo) return;
+    if (!targetVideo) {
+      setToast({ message: 'No video loaded on the active screen.', kind: 'error' });
+      return;
+    }
 
     const videoId = newId();
     const baseRecord = { id: videoId, label: saveData.label, date: new Date().toLocaleDateString() };
@@ -320,6 +366,7 @@ export default function Swingstr() {
           isSignedIn={googleAuth.isSignedIn}
           accessToken={googleAuth.accessToken}
           onDriveLoad={handleDriveLoad}
+          onLoadSavedVideo={loadSavedVideo}
         />
         {toastEl}
       </>

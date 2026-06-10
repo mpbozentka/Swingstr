@@ -1,6 +1,5 @@
 import React from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
-import { parseDriveFolderId } from '../hooks/useGoogleDrive';
 
 export default function EditStudentModal({ student, onSave, onClose }) {
   useEscapeClose(!!student, onClose);

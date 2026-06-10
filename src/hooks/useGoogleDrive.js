@@ -23,6 +23,23 @@ export function parseDriveFolderId(input) {
   return null;
 }
 
+/**
+ * Pull the human-readable reason out of a failed Drive API response. Google
+ * returns a JSON body like { error: { message: "...has not been used in
+ * project... or it is disabled" } } even when the request expected raw bytes,
+ * so surfacing that message turns an opaque "403" into an actionable one.
+ */
+async function describeError(res) {
+  let detail = '';
+  try {
+    const body = await res.json();
+    detail = body?.error?.message || '';
+  } catch {
+    /* non-JSON body — fall back to the status code alone */
+  }
+  return detail ? `${detail} (${res.status})` : `Drive API error: ${res.status}`;
+}
+
 export function useGoogleDrive(accessToken) {
   const authHeaders = () => ({
     Authorization: `Bearer ${accessToken}`,
@@ -41,7 +58,7 @@ export function useGoogleDrive(accessToken) {
       headers: authHeaders(),
     });
     if (res.status === 401) throw new Error('SESSION_EXPIRED');
-    if (!res.ok) throw new Error(`Drive API error: ${res.status}`);
+    if (!res.ok) throw new Error(await describeError(res));
     const data = await res.json();
     return data.files || [];
   };
@@ -51,7 +68,7 @@ export function useGoogleDrive(accessToken) {
       headers: authHeaders(),
     });
     if (res.status === 401) throw new Error('SESSION_EXPIRED');
-    if (!res.ok) throw new Error(`Drive download error: ${res.status}`);
+    if (!res.ok) throw new Error(await describeError(res));
     return res.blob();
   };
 

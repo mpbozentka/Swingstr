@@ -25,13 +25,18 @@ export function useVideoSources({ onClear } = {}) {
 
   useEffect(() => releaseAllObjectUrls, []);
 
-  const setSource = (side, url, file) => {
+  // driveFileId is set explicitly on every source change — leaving a stale ID
+  // behind made "Save to Student" record the previous Drive file instead of
+  // the video actually on screen.
+  const setSource = (side, url, file, driveFileId = null) => {
     if (side === 'left') {
       setLeft(url);
       setLeftFile(file);
+      setLeftDriveFileId(driveFileId);
     } else {
       setRight(url);
       setRightFile(file);
+      setRightDriveFileId(driveFileId);
     }
   };
 
@@ -56,16 +61,19 @@ export function useVideoSources({ onClear } = {}) {
 
   const loadDriveVideo = useCallback((side, blob, driveFileId) => {
     const url = registerObjectUrl(`video:${side}`, blob);
-    setSource(side, url, null);
-    if (side === 'left') setLeftDriveFileId(driveFileId);
-    else setRightDriveFileId(driveFileId);
+    setSource(side, url, null, driveFileId);
+  }, []);
+
+  /** Load a Blob (e.g. a saved video pulled back out of IndexedDB). The blob
+   *  doubles as the `file` so re-saving the video works like a fresh upload. */
+  const loadBlobVideo = useCallback((side, blob) => {
+    const url = registerObjectUrl(`video:${side}`, blob);
+    setSource(side, url, blob);
   }, []);
 
   const clear = useCallback((side) => {
     releaseObjectUrl(`video:${side}`);
     setSource(side, null, null);
-    if (side === 'left') setLeftDriveFileId(null);
-    else setRightDriveFileId(null);
     onClear?.(side);
   }, [onClear]);
 
@@ -79,6 +87,7 @@ export function useVideoSources({ onClear } = {}) {
     handleUpload: uploadFile,
     handleUrlUpload: uploadUrl,
     handleDriveLoad: loadDriveVideo,
+    handleBlobLoad: loadBlobVideo,
     handleClearVideo: clear,
   };
 }

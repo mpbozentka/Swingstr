@@ -11,6 +11,7 @@ export default function SaveModal({
 }) {
   useEscapeClose(show, onClose);
   if (!show) return null;
+  const canSave = !!saveData.studentId && !!saveData.label.trim();
   return (
     <div
       role="dialog"
@@ -47,6 +48,11 @@ export default function SaveModal({
               setSaveData((prev) => ({ ...prev, label: e.target.value }))
             }
           />
+          {!canSave && (
+            <p className="text-xs text-gray-500">
+              Pick a student and add a label to save.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
               onClick={onClose}
@@ -56,7 +62,8 @@ export default function SaveModal({
             </button>
             <button
               onClick={onSave}
-              className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500"
+              disabled={!canSave}
+              className="flex-1 bg-purple-600 py-2 rounded font-bold hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
             >
               Save
             </button>
