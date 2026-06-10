@@ -47,6 +47,7 @@ export default function Swingstr() {
   const [lineWidth, setLineWidth] = useState(3);
   const [speed, setSpeed] = useState(1.0);
   const [activeMenu, setActiveMenu] = useState(null);
+  const [showSkeleton, setShowSkeleton] = useState(false);
 
   const leftRef = useRef();
   const rightRef = useRef();
@@ -402,6 +403,8 @@ export default function Swingstr() {
       changeSpeed={changeSpeed}
       activeMenu={activeMenu}
       setActiveMenu={setActiveMenu}
+      showSkeleton={showSkeleton}
+      setShowSkeleton={setShowSkeleton}
       isPlaying={isPlaying}
       togglePlay={togglePlay}
       seek={seek}

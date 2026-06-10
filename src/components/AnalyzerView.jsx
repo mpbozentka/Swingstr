@@ -22,6 +22,7 @@ import {
   Check,
   X,
   LayoutGrid,
+  PersonStanding,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
 import ScreenPane from './ScreenPane';
@@ -61,6 +62,8 @@ export default function AnalyzerView({
   changeSpeed,
   activeMenu,
   setActiveMenu,
+  showSkeleton,
+  setShowSkeleton,
   isPlaying,
   togglePlay,
   seek,
@@ -285,6 +288,7 @@ export default function AnalyzerView({
           isSynced={sync}
           onScrub={onLinkedScrub}
           onTimeUpdate={onTimeUpdate}
+          showSkeleton={showSkeleton}
         />
 
         {layout === 'split' && (
@@ -309,6 +313,7 @@ export default function AnalyzerView({
             isSynced={sync}
             onScrub={onLinkedScrub}
             onTimeUpdate={onTimeUpdate}
+            showSkeleton={showSkeleton}
           />
         )}
       </main>
@@ -455,6 +460,13 @@ export default function AnalyzerView({
                 isOpen={activeMenu === 'speed'}
                 onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')}
               />
+              <IconButton
+                onClick={() => setShowSkeleton(!showSkeleton)}
+                active={showSkeleton}
+                title="Stick figure overlay"
+              >
+                <PersonStanding size={20} />
+              </IconButton>
               <IconButton onClick={onSnapshot} title="Snapshot">
                 <Camera size={20} />
               </IconButton>

@@ -9,6 +9,53 @@ import React, {
 import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
+import { usePoseDetection } from '../hooks/usePoseDetection';
+
+// Which BlazePose landmark indices to connect into a stick figure. Just the
+// coaching-relevant body lines — torso, arms, legs, feet — skipping the dense
+// face/hand points.
+const POSE_CONNECTIONS = [
+  [11, 12], [11, 23], [12, 24], [23, 24], // torso box
+  [11, 13], [13, 15],                     // left arm
+  [12, 14], [14, 16],                     // right arm
+  [23, 25], [25, 27],                     // left leg
+  [24, 26], [26, 28],                     // right leg
+  [27, 31], [28, 32],                     // feet
+];
+
+// Draw the skeleton over the letterboxed video. Landmarks are normalized
+// (0–1) to the video frame, so they map onto `videoRect` exactly like shapes.
+function drawSkeleton(ctx, landmarks, videoRect, zoomLevel) {
+  const toPx = (lm) => ({
+    x: videoRect.x + lm.x * videoRect.w,
+    y: videoRect.y + lm.y * videoRect.h,
+  });
+  const visible = (lm) => lm && (lm.visibility == null || lm.visibility > 0.5);
+
+  ctx.strokeStyle = 'rgba(34, 211, 238, 0.95)'; // cyan
+  ctx.lineWidth = 3 / zoomLevel;
+  POSE_CONNECTIONS.forEach(([a, b]) => {
+    const la = landmarks[a];
+    const lb = landmarks[b];
+    if (!visible(la) || !visible(lb)) return;
+    const pa = toPx(la);
+    const pb = toPx(lb);
+    ctx.beginPath();
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.95)'; // amber joints
+  landmarks.forEach((lm, i) => {
+    if (i > 0 && i < 11) return; // skip eyes/ears/mouth clutter
+    if (!visible(lm)) return;
+    const p = toPx(lm);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (i === 0 ? 6 : 4) / zoomLevel, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
 
 const VideoCanvas = forwardRef(
   (
@@ -27,6 +74,7 @@ const VideoCanvas = forwardRef(
       isSignedIn,
       onClear,
       onTimeUpdate,
+      showSkeleton,
     },
     ref
   ) => {
@@ -53,6 +101,42 @@ const VideoCanvas = forwardRef(
     // O(n) state rebuild per pointermove; the canvas redraws via `draw()` deps
     // which still pick up shape changes when the gesture commits. (#22)
     const livePointsRef = useRef(null);
+
+    // --- Stick-figure (pose) overlay ---------------------------------------
+    // Paused-frame mode: run pose detection on the frame the video is sitting
+    // on (after each seek / step / pause), draw the skeleton, no live tracking.
+    const { detect, status: poseStatus } = usePoseDetection();
+    const skeletonOn = showSkeleton;
+    const [landmarks, setLandmarks] = useState(null);
+    const poseBusy = useRef(false);
+
+    const runPose = useCallback(async () => {
+      const vid = videoRef.current;
+      if (!skeletonOn || !vid || vid.videoWidth === 0) return;
+      if (poseBusy.current) return;
+      poseBusy.current = true;
+      try {
+        const lm = await detect(vid);
+        setLandmarks(lm);
+      } catch {
+        setLandmarks(null);
+      } finally {
+        poseBusy.current = false;
+      }
+    }, [skeletonOn, detect]);
+
+    // Detect immediately when the toggle flips on; clear when it flips off.
+    useEffect(() => {
+      if (skeletonOn) runPose();
+      else setLandmarks(null);
+    }, [skeletonOn, runPose]);
+
+    // The first detection can race the one-time model download (or a not-yet-
+    // decoded frame). Once the model reports ready, re-run on the current frame
+    // so the skeleton appears without needing the user to step or re-toggle.
+    useEffect(() => {
+      if (skeletonOn && poseStatus === 'ready') runPose();
+    }, [skeletonOn, poseStatus, runPose]);
 
     /**
      * Compute the rect (in container/canvas pixels) where the video is
@@ -256,6 +340,9 @@ const VideoCanvas = forwardRef(
           videoRect,
         })
       );
+      if (skeletonOn && landmarks) {
+        drawSkeleton(ctx, landmarks, videoRect, zoomLevel);
+      }
       if (currentShape) {
         renderShape(ctx, currentShape, {
           zoomLevel,
@@ -285,11 +372,14 @@ const VideoCanvas = forwardRef(
         });
       }
       ctx.restore();
-    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex]);
+    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex, skeletonOn, landmarks]);
 
+    // Paint synchronously whenever the drawn state changes. (Was a single
+    // requestAnimationFrame that, at full speed, could be canceled by a rapid
+    // follow-up render before it ever fired — which made the pose overlay only
+    // appear when DevTools was open and slowing the page down.)
     useEffect(() => {
-      const anim = requestAnimationFrame(draw);
-      return () => cancelAnimationFrame(anim);
+      draw();
     }, [draw]);
 
     const getEventCoords = (e) => {
@@ -555,11 +645,24 @@ const VideoCanvas = forwardRef(
                 muted
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
+                onSeeked={runPose}
+                onLoadedData={runPose}
+                onPause={runPose}
               />
               <canvas
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full"
               />
+              {skeletonOn && poseStatus === 'loading' && (
+                <div className="absolute bottom-4 left-4 z-50 px-2 py-1 rounded bg-black/60 text-cyan-200 text-xs">
+                  Loading pose model…
+                </div>
+              )}
+              {skeletonOn && poseStatus === 'error' && (
+                <div className="absolute bottom-4 left-4 z-50 px-2 py-1 rounded bg-red-900/80 text-red-100 text-xs">
+                  Pose model failed to load
+                </div>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
