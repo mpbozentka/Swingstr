@@ -8,9 +8,9 @@ body {
   color: white;
 }
 
-/* Keep footer tools above mobile browser UI (address bar, nav) */
+/* Clear the iPhone home indicator without adding dead space below the tools */
 @media (max-width: 768px) {
   .footer-mobile-safe {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 80px) !important;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px) !important;
   }
 }

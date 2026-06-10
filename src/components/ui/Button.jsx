@@ -43,13 +43,14 @@ export function MenuButton({ icon: Icon, label, active, onClick, isOpen }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${active || isOpen
+      aria-label={label}
+      className={`relative flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg transition-all ${active || isOpen
           ? 'bg-gray-700 text-white'
           : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
         }`}
     >
       <Icon size={18} className={active ? 'text-purple-400' : ''} />
-      <span className="text-sm font-medium">{label}</span>
+      <span className="text-sm font-medium hidden sm:inline">{label}</span>
       {isOpen && (
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-700 rotate-45 translate-y-1" />
       )}
