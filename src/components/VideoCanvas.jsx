@@ -263,7 +263,7 @@ const VideoCanvas = forwardRef(
           videoRect,
         });
       }
-      if (tool === 'angle' && points.length > 0) {
+      if ((tool === 'angle' || tool === 'line') && points.length > 0) {
         ctx.fillStyle = color;
         points.forEach((p) => {
           ctx.beginPath();
@@ -316,9 +316,14 @@ const VideoCanvas = forwardRef(
     };
 
     const handlePointerDown = (e) => {
-      if (e.pointerType === 'touch') {
-        e.preventDefault();
+      if (e.pointerType === 'touch') e.preventDefault();
+      // Capture the pointer for the whole gesture (mouse and touch). Without
+      // this, a touch drag stops the moment the finger crosses an element
+      // boundary because the browser fires a leave/cancel event mid-drag.
+      try {
         e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* setPointerCapture can throw if the pointer is already gone */
       }
       onActivate();
       if (!src) return;
@@ -363,6 +368,29 @@ const VideoCanvas = forwardRef(
             p1: newPoints[0],
             p2: newPoints[1],
             p3: newPoints[2],
+            color,
+            width: lineWidth,
+          };
+          setShapes((prev) => {
+            const next = [...prev, newShape];
+            setSelectedIndex(next.length - 1);
+            return next;
+          });
+          setPoints([]);
+        }
+        return;
+      }
+      if (tool === 'line') {
+        // Two-click placement: first tap drops the start point, second tap
+        // sets the end and commits the line (then selects it so the endpoint
+        // handles are immediately draggable).
+        const newPoints = [...points, pos];
+        setPoints(newPoints);
+        if (newPoints.length === 2) {
+          const newShape = {
+            type: 'line',
+            start: newPoints[0],
+            end: newPoints[1],
             color,
             width: lineWidth,
           };
@@ -472,7 +500,6 @@ const VideoCanvas = forwardRef(
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
           {!src && (
