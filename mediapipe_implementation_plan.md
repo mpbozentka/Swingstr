@@ -102,6 +102,25 @@ branch; stage but don't commit until Mitch confirms testing; explain changes
 in plain English; ask before adding dependencies beyond the ones this doc
 already approves; never commit `.env`-like files.
 
+### Rules for the implementing agent (also non-negotiable)
+
+1. **One phase per session, then stop.** Implement exactly the phase Mitch
+   asked for, run lint + build, stage the changes, summarize in plain
+   English what to test and how, and STOP. Do not start the next phase, do
+   not "get a head start" on later sections. Mitch tests manually; the task
+   isn't done until he says so.
+2. **No subagents, no parallel work.** Do not spawn agents, background
+   tasks, or parallel workstreams for any part of this plan. One focused
+   session working sequentially is the intended (and cheapest) path.
+3. **Three-strikes rule on bugs.** If you've attempted the same bug three
+   times without clear progress, STOP. Do not keep looping on variations.
+   Tell Mitch: what the bug is, what you tried, and that he should re-run
+   this in a stronger model (`/model fable` or `/model opus`). A stuck
+   session burns more tokens than a model switch.
+4. **When reality contradicts this doc** (an API changed, a file moved, a
+   step doesn't work as written), say so explicitly and ask before
+   improvising. Do not silently deviate from the spec.
+
 ---
 
 ## 3. Core architecture: analyze once, play back instantly
