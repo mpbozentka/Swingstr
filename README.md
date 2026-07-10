@@ -27,6 +27,11 @@ Swingstr is a privacy-focused, professional golf swing analysis platform built f
 - Use evenly-spaced frames or your set markers as the source.
 - Annotations are mapped through the letterbox so they land on the right pixel even when the video aspect ratio differs from the cell.
 
+### 🦴 Pose Skeleton Overlay
+- One-time analysis pass (via MediaPipe Pose Landmarker, on-device — no upload) caches body landmarks across the trimmed range.
+- "Analyze" button per active screen; once done, toggle a sky-blue stick-figure overlay that tracks playback and scrubbing instantly from the cache.
+- Runs entirely in-browser; no server, no subscription.
+
 ### 💻 Modern Tech Stack
 - **Framework:** React 19 + Vite
 - **Styling:** Tailwind CSS (dark mode optimized)
@@ -49,11 +54,19 @@ npm run dev
 
 Open http://localhost:5173
 
+`npm install` also runs a `postinstall` step that copies the MediaPipe WASM
+runtime out of `node_modules` and downloads the pose model (~9MB) into
+`public/mediapipe/` — both are served same-origin (never from a CDN) to keep
+the privacy-first design, and both are gitignored since they're regenerated
+automatically. If that step fails (e.g. no network at install time), re-run
+it manually with `npm run setup-mediapipe`.
+
 ### Scripts
 - `npm run dev` — start the dev server
 - `npm run build` — production build to `dist/`
 - `npm run preview` — preview the production build
 - `npm run lint` — ESLint + react-hooks rules
+- `npm run setup-mediapipe` — (re)fetch the MediaPipe WASM + model assets
 
 ## 🎮 Controls & Shortcuts
 

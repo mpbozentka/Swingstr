@@ -9,6 +9,7 @@ import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
+import { usePoseAnalysis } from './hooks/usePoseAnalysis';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -55,15 +56,24 @@ export default function Swingstr() {
   const leftRef = useRef();
   const rightRef = useRef();
 
+  const {
+    poseState,
+    analyze: analyzePose,
+    cancelAnalysis: cancelPoseAnalysis,
+    toggleSkeleton: togglePoseSkeleton,
+    clearAnalysis: clearPoseAnalysis,
+  } = usePoseAnalysis({ leftRef, rightRef, trims, onToast: setToast });
+
   const handleSourceClear = useCallback((side) => {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
     setTrims((prev) => ({ ...prev, [side]: { start: null, end: null } }));
+    clearPoseAnalysis(side);
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
       setIsPlaying(false);
     }
-  }, [activeScreen]);
+  }, [activeScreen, clearPoseAnalysis]);
 
   const googleAuth = useGoogleAuth();
 
@@ -72,6 +82,14 @@ export default function Swingstr() {
     leftDriveFileId, rightDriveFileId,
     handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
+
+  // Pose cache is keyed to a specific video, not a side — loading a new
+  // video into a side that already has an analysis must drop the stale
+  // skeleton rather than draw it over unrelated footage (plan section 3).
+  // handleSourceClear covers the explicit clear-button path; this covers
+  // replace-in-place (upload/URL/Drive over an existing video).
+  useEffect(() => { clearPoseAnalysis('left'); }, [leftVideo, clearPoseAnalysis]);
+  useEffect(() => { clearPoseAnalysis('right'); }, [rightVideo, clearPoseAnalysis]);
 
   const requestUrlUpload = useCallback((side) => {
     setUrlPromptSide(side);
@@ -404,6 +422,12 @@ export default function Swingstr() {
       activeTrim={trims[activeScreen]}
       onSetTrim={handleSetTrim}
       onClearTrim={handleClearTrim}
+      poseState={poseState}
+      activePose={poseState[activeScreen]}
+      poseBusy={poseState.left.status === 'analyzing' || poseState.right.status === 'analyzing'}
+      onAnalyze={() => analyzePose(activeScreen)}
+      onCancelAnalysis={() => cancelPoseAnalysis(activeScreen)}
+      onToggleSkeleton={() => togglePoseSkeleton(activeScreen)}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
       onSetSyncPoint={handleSetSyncPoint}

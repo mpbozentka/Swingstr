@@ -25,7 +25,9 @@ the face and hand points. Nothing else client-side offers:
 - Per-landmark `visibility` score (0–1) for hiding low-confidence points.
 - No server, no upload, no subscription — preserves Swingstr's
   privacy-focused, everything-stays-local design.
-- `detectForVideo()` mode built for stepping through video frames.
+- IMAGE-mode `detect()` per seek-stepped frame. (Originally VIDEO mode /
+  `detectForVideo()` — reverted: its cross-frame tracking+smoothing made the
+  skeleton visibly trail fast motion. See 5.2.)
 
 ### Alternatives considered (do not revisit)
 
@@ -131,11 +133,11 @@ scrubbing just look up the cache. Never run detection live during playback
 
 ```
 [Analyze button] → seek-step through trimmed range
-                 → detectForVideo() per step
+                 → detect() per step (IMAGE mode)
                  → smooth landmark trajectories
                  → cache: Array<{ t, landmarks, worldLandmarks }>
-[Playback/scrub] → binary-search cache by currentTime
-                 → draw skeleton + compute angles from cached frame
+[Playback/scrub] → binary-search cache, lerp between bracketing frames
+                 → draw skeleton + compute angles from interpolated frame
 ```
 
 Cache invalidation: the cache belongs to a specific video source. Key it by
@@ -192,11 +194,10 @@ export function getPoseLandmarker() {
           modelAssetPath: '/mediapipe/pose_landmarker_full.task',
           delegate: 'GPU', // falls back to CPU automatically if unavailable
         },
-        runningMode: 'VIDEO',
+        runningMode: 'IMAGE',
         numPoses: 1,
         minPoseDetectionConfidence: 0.5,
         minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
       });
     })();
     landmarkerPromise.catch(() => { landmarkerPromise = null; }); // allow retry
@@ -206,15 +207,17 @@ export function getPoseLandmarker() {
 ```
 
 Gotchas:
-- `detectForVideo(videoEl, timestampMs)` **requires strictly increasing
-  timestamps** across calls on the same landmarker instance. Use
-  `Math.round(t * 1000)` from video time and, because a *second* analysis
-  (other pane, or re-run) would restart at a smaller timestamp, keep a
-  module-level monotonic counter: `ts = Math.max(lastTs + 1, Math.round(t*1000)); lastTs = ts;`
-  Failing this throws or silently returns empty results depending on version.
-- Only ONE analysis may run at a time (GPU contention + the timestamp rule).
-  Guard with a module-level `isAnalyzing` flag; disable both Analyze buttons
-  while true.
+- **Use IMAGE mode, not VIDEO mode** (changed 2026-07-10 after phase 1 QA).
+  VIDEO mode's cross-frame tracking + internal smoothing made the skeleton
+  visibly lag the golfer during fast motion, and its strictly-increasing
+  timestamp requirement forced a monotonic-counter hack that broke every
+  analysis after the first (timestamps collapsed to 1 ms apart → the internal
+  smoother over-smoothed massively). IMAGE mode detects each seek-stepped
+  frame independently: no timestamps, no tracking lag. Do not "upgrade" back
+  to VIDEO mode.
+- Only ONE analysis may run at a time (GPU contention on the shared
+  landmarker). Guard with a module-level `isAnalyzing` flag; disable both
+  Analyze buttons while true.
 - Result shape: `result.landmarks[0]` = 33 `{x, y, z, visibility}` normalized
   to the video frame; `result.worldLandmarks[0]` = 33 `{x, y, z, visibility}`
   in meters, hip-midpoint origin. Either array can be empty (no person
@@ -267,11 +270,22 @@ Algorithm (mirrors the existing `captureFrameAtTime` recipe):
    timeline regardless of capture fps; 30 samples/s of *playback* time is
    plenty because the motion is already slowed. Do NOT try to read the true
    frame rate — the browser doesn't expose it reliably.)
-5. Loop `t` from start to end:
-   - `vid.currentTime = t`; `await` the `'seeked'` event (`{ once: true }`);
-     `await` two nested rAFs (decode settle — same as captureFrameAtTime).
-   - `const res = landmarker.detectForVideo(vid, monotonicTs(t))`
-   - Push `{ t, landmarks: res.landmarks[0] ?? null, world: res.worldLandmarks[0] ?? null }`.
+5. Loop `t` from start to end (changed 2026-07-10 after phase 1 QA — the
+   original 'seeked' + two-rAF settle could detect a stale frame, and
+   stamping entries with the *requested* t mislabeled them by up to one
+   native frame):
+   - Register `vid.requestVideoFrameCallback` BEFORE the seek, then
+     `vid.currentTime = t`, `await` the `'seeked'` event, then await the
+     rVFC promise raced against a ~100ms timeout (rVFC never fires when the
+     seek lands on the already-presented frame). The rVFC metadata's
+     `mediaTime` is the exact timestamp of the frame on screen. Fallback
+     when rVFC is unavailable: 'seeked' + two nested rAFs, use
+     `vid.currentTime`.
+   - Skip the step if `mediaTime <=` the previous entry's `t` (sub-30fps
+     sources land two steps on the same native frame) — the cache must stay
+     strictly increasing.
+   - `const res = landmarker.detect(vid)` (IMAGE mode — see 5.2)
+   - Push `{ t: mediaTime, landmarks: res.landmarks[0] ?? null, world: res.worldLandmarks[0] ?? null }`.
    - Update `progress = (t - start) / (end - start)` — but throttle state
      updates to ~every 5th frame to avoid re-render churn.
    - Check an `abortRef` each iteration so a Cancel button / video clear can
@@ -286,16 +300,20 @@ feature exists — analysis MUST respect it.
 
 ### 5.5 Smoothing
 
-Exponential moving average per coordinate, applied index-by-index across
-frames after the pass (simpler than One-Euro and adequate here):
+Symmetric neighbor blend per coordinate, applied after the pass (changed
+2026-07-10: the original one-sided EMA added ~1 frame of phase lag — visible
+during the downswing — while a both-sides blend has zero lag and is free
+because all frames are already cached). 5-tap kernel after jitter feedback:
 
 ```
-smoothed[i] = alpha * raw[i] + (1 - alpha) * smoothed[i-1]   // alpha = 0.5
+smoothed[i] = 0.1*raw[i-2] + 0.2*raw[i-1] + 0.4*raw[i] + 0.2*raw[i+1] + 0.1*raw[i+2]
 ```
 
-Apply to both `landmarks` and `world`. Reset the EMA chain whenever a frame
-has `null` landmarks (don't smooth across detection gaps). Keep `visibility`
-unsmoothed (take the raw value).
+Blend against RAW neighbors, not smoothed output. Apply to both `landmarks`
+and `world`. If a neighbor is missing or has `null` landmarks (edge of range,
+detection gap), drop its term and renormalize the remaining weights. Keep
+`visibility` unsmoothed (take the raw value). Do NOT replace this with any
+causal/one-sided filter — that reintroduces the lag.
 
 ### 5.6 Drawing the overlay
 
@@ -304,9 +322,12 @@ pan/zoom-transformed context):
 
 1. New props: `poseFrames` (the cached array or null) and `showSkeleton`
    (bool). Mirror `poseFrames` into a ref (existing pattern).
-2. Find the frame: binary search `poseFrames` for greatest `t <=
-   vid.currentTime` (frames are sorted; linear scan is acceptable at ~120
-   frames but write the binary search — it's 10 lines).
+2. Find the pose: binary search `poseFrames` for greatest `t <=
+   vid.currentTime`, then **lerp toward the next frame** by the playhead's
+   fractional position between the two (`sampleFrameAtTime` in
+   constants/pose.js). Snapping to the floor frame (the original design)
+   kept the skeleton up to one sample step behind the video — always
+   behind, never ahead.
 3. For each connection pair, if both endpoints' `visibility >= 0.5`, draw a
    line from `(videoRect.x + a.x * videoRect.w, videoRect.y + a.y * videoRect.h)`
    to the same mapping of `b`. Then draw a small filled circle per point.
@@ -440,12 +461,14 @@ suggested marker placements, not automatic writes.
 
 ## 9. Known gotchas (pre-answered so you don't debug them from scratch)
 
-1. **`detectForVideo` timestamps must strictly increase** per landmarker
-   instance — see 5.2. Symptom of violation: empty results or thrown
-   `INVALID_ARGUMENT`.
+1. **Stay in IMAGE mode.** VIDEO mode (`detectForVideo`) lags fast motion and
+   its timestamp rules caused a second-run smoothing bug — see 5.2. Symptom
+   if reintroduced: skeleton trails the golfer, worst after re-analysis.
 2. **Seek-settle:** reading the video element immediately after `seeked`
-   can grab the *previous* frame. Always await two nested rAFs after the
-   event (existing `captureFrameAtTime` does this — copy it).
+   can grab the *previous* frame. The analysis loop now uses
+   `requestVideoFrameCallback` (fires on actual frame presentation, reports
+   the frame's exact `mediaTime`) — see 5.4 step 5. The two-nested-rAF
+   trick remains only as the no-rVFC fallback and in `captureFrameAtTime`.
 3. **HEVC iPhone videos:** Chrome on macOS decodes HEVC only on Apple
    Silicon w/ recent Chrome; Safari always does. If `videoWidth === 0`
    after metadata, toast "Browser can't decode this video format" rather

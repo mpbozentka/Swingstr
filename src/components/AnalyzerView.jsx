@@ -23,6 +23,8 @@ import {
   X,
   LayoutGrid,
   Scissors,
+  PersonStanding,
+  Loader2,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
 import ScreenPane from './ScreenPane';
@@ -80,6 +82,12 @@ export default function AnalyzerView({
   activeTrim,
   onSetTrim,
   onClearTrim,
+  poseState,
+  activePose,
+  poseBusy,
+  onAnalyze,
+  onCancelAnalysis,
+  onToggleSkeleton,
   syncPoints,
   hasSyncOffset,
   onSetSyncPoint,
@@ -291,6 +299,8 @@ export default function AnalyzerView({
           onTimeUpdate={onTimeUpdate}
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
+          poseFrames={poseState.left.frames}
+          showSkeleton={poseState.left.showSkeleton}
         />
 
         {layout === 'split' && (
@@ -317,6 +327,8 @@ export default function AnalyzerView({
             onTimeUpdate={onTimeUpdate}
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
+            poseFrames={poseState.right.frames}
+            showSkeleton={poseState.right.showSkeleton}
           />
         )}
       </main>
@@ -420,6 +432,44 @@ export default function AnalyzerView({
                 aria-label="Clear trim"
               >
                 <X size={12} />
+              </button>
+            )}
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+            {/* Pose skeleton overlay — analyze the active screen's video,
+                then toggle the overlay on/off once done. */}
+            {activePose.status === 'analyzing' ? (
+              <div className="flex items-center gap-1">
+                <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-sky-600/20 text-sky-400 border border-sky-600/40">
+                  <Loader2 size={12} className="animate-spin" />
+                  {Math.round(activePose.progress * 100)}%
+                </span>
+                <button
+                  onClick={onCancelAnalysis}
+                  className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-red-900/30"
+                  title="Cancel analysis"
+                  aria-label="Cancel analysis"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={activePose.status === 'done' ? onToggleSkeleton : onAnalyze}
+                disabled={poseBusy}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors border disabled:opacity-40 disabled:cursor-not-allowed ${
+                  activePose.status === 'done' && activePose.showSkeleton
+                    ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
+                }`}
+                title={
+                  activePose.status === 'done'
+                    ? (activePose.showSkeleton ? 'Hide skeleton overlay' : 'Show skeleton overlay')
+                    : 'Analyze swing (pose skeleton)'
+                }
+              >
+                <PersonStanding size={12} />
+                {activePose.status === 'done' ? 'Skeleton' : 'Analyze'}
+                {activePose.status === 'done' && activePose.showSkeleton ? <Check size={10} /> : null}
               </button>
             )}
           </div>

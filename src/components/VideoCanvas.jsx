@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
+import { renderSkeleton } from '../utils/poseRenderer';
+import { sampleFrameAtTime } from '../constants/pose';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
@@ -29,6 +31,8 @@ const VideoCanvas = forwardRef(
       onTimeUpdate,
       trimStart,
       trimEnd,
+      poseFrames,
+      showSkeleton,
     },
     ref
   ) => {
@@ -61,6 +65,17 @@ const VideoCanvas = forwardRef(
       return t;
     }, []);
 
+    // Mirrors for the pose overlay, same pattern as shapesRef/trimRef above —
+    // the playback rAF loop below needs the latest values without re-binding.
+    const poseFramesRef = useRef(null);
+    useEffect(() => { poseFramesRef.current = poseFrames ?? null; }, [poseFrames]);
+    const showSkeletonRef = useRef(false);
+    useEffect(() => { showSkeletonRef.current = !!showSkeleton; }, [showSkeleton]);
+    // Populated once `draw` is defined below; lets the trim rAF loop trigger
+    // a redraw each frame so the skeleton tracks the playhead between React
+    // renders (draw() otherwise only re-runs when its own deps change).
+    const drawRef = useRef(null);
+
     // While playing, keep the playhead inside the trim window: loop back to
     // the in-point when the out-point is reached. Runs as a rAF loop because
     // `timeupdate` only fires every ~250ms, which would overshoot the
@@ -78,6 +93,7 @@ const VideoCanvas = forwardRef(
             // Native `loop` wrapped back to 0 — jump forward to the in-point.
             vid.currentTime = start;
           }
+          if (showSkeletonRef.current) drawRef.current?.();
         }
         frame = requestAnimationFrame(tick);
       };
@@ -214,6 +230,9 @@ const VideoCanvas = forwardRef(
         },
         getSnapshot: takeSnapshot,
         captureFrameAtTime,
+        // Raw element access for the pose-analysis loop, which drives its own
+        // seek/detect steps (needs the actual <video> to feed the landmarker).
+        getVideoElement: () => videoRef.current,
         // Read shapes via the ref so we don't rebind the imperative handle
         // every time the user finishes a stroke. (#8)
         getShapes: () => shapesRef.current.slice(),
@@ -292,6 +311,12 @@ const VideoCanvas = forwardRef(
       ctx.scale(zoomLevel, zoomLevel);
       ctx.translate(-centerX, -centerY);
 
+      // Skeleton draws first (under shapes) so telestration stays on top.
+      if (showSkeletonRef.current && poseFramesRef.current) {
+        const frame = sampleFrameAtTime(poseFramesRef.current, vid?.currentTime ?? 0);
+        if (frame) renderSkeleton(ctx, frame, { videoRect, zoomLevel });
+      }
+
       shapes.forEach((shape) =>
         renderShape(ctx, shape, {
           zoomLevel,
@@ -334,6 +359,30 @@ const VideoCanvas = forwardRef(
       const anim = requestAnimationFrame(draw);
       return () => cancelAnimationFrame(anim);
     }, [draw]);
+
+    useEffect(() => { drawRef.current = draw; }, [draw]);
+
+    // Redraw when the pose overlay toggles or a fresh analysis result lands —
+    // draw()'s own deps don't cover these (read via ref, see mirrors above),
+    // so without this the canvas wouldn't update until the next unrelated
+    // redraw or playback frame.
+    useEffect(() => {
+      draw();
+    }, [draw, poseFrames, showSkeleton]);
+
+    // Redraw immediately on any seek (scrub, frame-step, marker jump) so the
+    // skeleton doesn't lag behind a stale frame while paused — draw() only
+    // reruns on its own state deps otherwise, none of which include
+    // currentTime. The playback rAF loop above covers the playing case.
+    useEffect(() => {
+      const vid = videoRef.current;
+      if (!vid) return undefined;
+      const onSeeked = () => {
+        if (showSkeletonRef.current) drawRef.current?.();
+      };
+      vid.addEventListener('seeked', onSeeked);
+      return () => vid.removeEventListener('seeked', onSeeked);
+    }, [src]);
 
     const getEventCoords = (e) => {
       if (e.touches?.[0]) {
