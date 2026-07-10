@@ -38,6 +38,11 @@ export default function Swingstr() {
   const [editingStudent, setEditingStudent] = useState(null);
 
   const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
+  // Virtual trim range per side: { start, end } in seconds, either may be
+  // null. The video file is never modified — playback and scrubbing are
+  // confined to this window, and the future pose-analysis pass will only
+  // process frames inside it.
+  const [trims, setTrims] = useState({ left: { start: null, end: null }, right: { start: null, end: null } });
   const [toast, setToast] = useState(null); // { message, kind }
   // Side currently waiting on a URL input (null when modal closed)
   const [urlPromptSide, setUrlPromptSide] = useState(null);
@@ -52,6 +57,7 @@ export default function Swingstr() {
 
   const handleSourceClear = useCallback((side) => {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
+    setTrims((prev) => ({ ...prev, [side]: { start: null, end: null } }));
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
@@ -99,6 +105,26 @@ export default function Swingstr() {
   const handleClearSyncPoint = useCallback((side) => {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
   }, []);
+
+  const handleSetTrim = useCallback((bound) => {
+    const ref = activeScreen === 'left' ? leftRef : rightRef;
+    if (!ref.current?.hasVideo) return;
+    const time = ref.current.currentTime;
+    const cur = trims[activeScreen];
+    if (bound === 'start' && cur.end != null && time >= cur.end) {
+      setToast({ message: 'Trim start must be before the trim end.', kind: 'error' });
+      return;
+    }
+    if (bound === 'end' && cur.start != null && time <= cur.start) {
+      setToast({ message: 'Trim end must be after the trim start.', kind: 'error' });
+      return;
+    }
+    setTrims((prev) => ({ ...prev, [activeScreen]: { ...prev[activeScreen], [bound]: time } }));
+  }, [activeScreen, trims]);
+
+  const handleClearTrim = useCallback(() => {
+    setTrims((prev) => ({ ...prev, [activeScreen]: { start: null, end: null } }));
+  }, [activeScreen]);
 
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
@@ -209,7 +235,12 @@ export default function Swingstr() {
   }, [sync, hasSyncOffset, syncOffset]);
 
   const handleGlobalScrub = useCallback((e) => {
-    const t = parseFloat(e.target.value);
+    let t = parseFloat(e.target.value);
+    // Keep the slider inside the active side's trim window so it doesn't
+    // visually jump ahead and snap back on the next timeupdate.
+    const trim = trims[activeScreen];
+    if (trim.start != null) t = Math.max(trim.start, t);
+    if (trim.end != null) t = Math.min(trim.end, t);
     setGlobalTime(t);
     if (sync) {
       leftRef.current?.seekTo(t);
@@ -218,7 +249,7 @@ export default function Swingstr() {
       if (activeScreen === 'left') leftRef.current?.seekTo(t);
       else rightRef.current?.seekTo(t);
     }
-  }, [sync, activeScreen, hasSyncOffset, syncOffset]);
+  }, [sync, activeScreen, hasSyncOffset, syncOffset, trims]);
 
   const saveToStudent = useCallback(async () => {
     if (!saveData.studentId || !saveData.label) return;
@@ -369,6 +400,10 @@ export default function Swingstr() {
       showSequenceModal={showSequenceModal}
       setShowSequenceModal={setShowSequenceModal}
       markers={markers}
+      trims={trims}
+      activeTrim={trims[activeScreen]}
+      onSetTrim={handleSetTrim}
+      onClearTrim={handleClearTrim}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
       onSetSyncPoint={handleSetSyncPoint}

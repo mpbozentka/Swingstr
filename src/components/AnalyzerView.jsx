@@ -22,6 +22,7 @@ import {
   Check,
   X,
   LayoutGrid,
+  Scissors,
 } from 'lucide-react';
 import { Button, IconButton, MenuButton } from './ui/Button';
 import ScreenPane from './ScreenPane';
@@ -75,6 +76,10 @@ export default function AnalyzerView({
   showSequenceModal,
   setShowSequenceModal,
   markers,
+  trims,
+  activeTrim,
+  onSetTrim,
+  onClearTrim,
   syncPoints,
   hasSyncOffset,
   onSetSyncPoint,
@@ -284,6 +289,8 @@ export default function AnalyzerView({
           isSynced={sync}
           onScrub={onLinkedScrub}
           onTimeUpdate={onTimeUpdate}
+          trimStart={trims.left.start}
+          trimEnd={trims.left.end}
         />
 
         {layout === 'split' && (
@@ -308,6 +315,8 @@ export default function AnalyzerView({
             isSynced={sync}
             onScrub={onLinkedScrub}
             onTimeUpdate={onTimeUpdate}
+            trimStart={trims.right.start}
+            trimEnd={trims.right.end}
           />
         )}
       </main>
@@ -328,6 +337,21 @@ export default function AnalyzerView({
               aria-label="Video timeline"
               className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
             />
+            {/* Trimmed-out regions shaded on the timeline */}
+            {globalDuration > 0 && activeTrim.start != null && (
+              <div
+                className="absolute top-0 bottom-0 left-0 bg-black/60 border-r-2 border-emerald-400/80 rounded-l-lg z-10 pointer-events-none"
+                style={{ width: `${(activeTrim.start / globalDuration) * 100}%` }}
+                title={`Trim start: ${activeTrim.start.toFixed(2)}s`}
+              />
+            )}
+            {globalDuration > 0 && activeTrim.end != null && (
+              <div
+                className="absolute top-0 bottom-0 right-0 bg-black/60 border-l-2 border-emerald-400/80 rounded-r-lg z-10 pointer-events-none"
+                style={{ width: `${(Math.max(0, globalDuration - activeTrim.end) / globalDuration) * 100}%` }}
+                title={`Trim end: ${activeTrim.end.toFixed(2)}s`}
+              />
+            )}
             {/* Sync point indicators on timeline */}
             {globalDuration > 0 && syncPoints.left != null && (
               <div
@@ -361,6 +385,44 @@ export default function AnalyzerView({
           <span className="text-xs font-mono text-gray-400 w-12">
             {globalDuration.toFixed(1)}s
           </span>
+          {/* Trim controls — apply to the active screen's video */}
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => onSetTrim('start')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                activeTrim.start != null
+                  ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-600/50'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600'
+              }`}
+              title={activeTrim.start != null ? `Trim start: ${activeTrim.start.toFixed(2)}s — click to move to current frame` : 'Set trim start at current frame'}
+            >
+              <Scissors size={12} />
+              In
+              {activeTrim.start != null ? <Check size={10} /> : null}
+            </button>
+            <button
+              onClick={() => onSetTrim('end')}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                activeTrim.end != null
+                  ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-600/50'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600'
+              }`}
+              title={activeTrim.end != null ? `Trim end: ${activeTrim.end.toFixed(2)}s — click to move to current frame` : 'Set trim end at current frame'}
+            >
+              Out
+              {activeTrim.end != null ? <Check size={10} /> : null}
+            </button>
+            {(activeTrim.start != null || activeTrim.end != null) && (
+              <button
+                onClick={onClearTrim}
+                className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-red-900/30"
+                title="Clear trim"
+                aria-label="Clear trim"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
         <MarkerBar

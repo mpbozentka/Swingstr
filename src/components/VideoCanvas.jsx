@@ -27,6 +27,8 @@ const VideoCanvas = forwardRef(
       isSignedIn,
       onClear,
       onTimeUpdate,
+      trimStart,
+      trimEnd,
     },
     ref
   ) => {
@@ -43,6 +45,45 @@ const VideoCanvas = forwardRef(
     // can read the latest array without needing a re-bind. (#8)
     const shapesRef = useRef([]);
     useEffect(() => { shapesRef.current = shapes; }, [shapes]);
+
+    // Trim range mirror so the imperative seek handlers and the playback
+    // loop always read the latest values without re-binding (same pattern
+    // as shapesRef above).
+    const trimRef = useRef({ start: null, end: null });
+    useEffect(() => {
+      trimRef.current = { start: trimStart ?? null, end: trimEnd ?? null };
+    }, [trimStart, trimEnd]);
+
+    const clampToTrim = useCallback((t) => {
+      const { start, end } = trimRef.current;
+      if (start != null && t < start) return start;
+      if (end != null && t > end) return end;
+      return t;
+    }, []);
+
+    // While playing, keep the playhead inside the trim window: loop back to
+    // the in-point when the out-point is reached. Runs as a rAF loop because
+    // `timeupdate` only fires every ~250ms, which would overshoot the
+    // out-point visibly.
+    useEffect(() => {
+      const vid = videoRef.current;
+      if (!vid || !src) return undefined;
+      let frame = 0;
+      const tick = () => {
+        const { start, end } = trimRef.current;
+        if (!vid.paused) {
+          if (end != null && vid.currentTime >= end) {
+            vid.currentTime = start ?? 0;
+          } else if (start != null && vid.currentTime < start - 0.05) {
+            // Native `loop` wrapped back to 0 — jump forward to the in-point.
+            vid.currentTime = start;
+          }
+        }
+        frame = requestAnimationFrame(tick);
+      };
+      frame = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(frame);
+    }, [src]);
 
     const [currentShape, setCurrentShape] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -156,10 +197,12 @@ const VideoCanvas = forwardRef(
         play: () => videoRef.current?.play().catch(() => { }),
         pause: () => videoRef.current?.pause(),
         seekRelative: (s) => {
-          if (videoRef.current) videoRef.current.currentTime += s;
+          if (videoRef.current) {
+            videoRef.current.currentTime = clampToTrim(videoRef.current.currentTime + s);
+          }
         },
         seekTo: (t) => {
-          if (videoRef.current) videoRef.current.currentTime = t;
+          if (videoRef.current) videoRef.current.currentTime = clampToTrim(t);
         },
         setPlaybackRate: (r) => {
           if (videoRef.current) videoRef.current.playbackRate = r;
@@ -182,7 +225,7 @@ const VideoCanvas = forwardRef(
           return videoRef.current?.duration ?? 0;
         },
       }),
-      [takeSnapshot, captureFrameAtTime, src]
+      [takeSnapshot, captureFrameAtTime, src, clampToTrim]
     );
 
     useEffect(() => {
