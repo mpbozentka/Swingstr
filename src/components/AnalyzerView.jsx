@@ -36,6 +36,7 @@ import MarkerBar from './MarkerBar';
 import SwingSequenceModal from './SwingSequenceModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
+import SwingGraphPanel from './SwingGraphPanel';
 
 export default function AnalyzerView({
   onOpenLibrary,
@@ -73,6 +74,7 @@ export default function AnalyzerView({
   globalTime,
   globalDuration,
   onGlobalScrub,
+  onGraphSeek,
   onTimeUpdate,
   onLinkedScrub,
   showSequenceModal,
@@ -88,6 +90,12 @@ export default function AnalyzerView({
   onAnalyze,
   onCancelAnalysis,
   onToggleSkeleton,
+  viewTypes,
+  handedness,
+  activeViewType,
+  activeHandedness,
+  onSetViewType,
+  onToggleHandedness,
   syncPoints,
   hasSyncOffset,
   onSetSyncPoint,
@@ -301,6 +309,8 @@ export default function AnalyzerView({
           trimEnd={trims.left.end}
           poseFrames={poseState.left.frames}
           showSkeleton={poseState.left.showSkeleton}
+          viewType={viewTypes.left}
+          handedness={handedness.left}
         />
 
         {layout === 'split' && (
@@ -329,9 +339,24 @@ export default function AnalyzerView({
             trimEnd={trims.right.end}
             poseFrames={poseState.right.frames}
             showSkeleton={poseState.right.showSkeleton}
+            viewType={viewTypes.right}
+            handedness={handedness.right}
           />
         )}
       </main>
+
+      {/* Angle-over-time graph (plan section 7) — renders nothing until a
+          pane has a finished analysis and a view-type tag. */}
+      <SwingGraphPanel
+        poseState={poseState}
+        viewTypes={viewTypes}
+        handedness={handedness}
+        activeScreen={activeScreen}
+        trims={trims}
+        globalTime={globalTime}
+        globalDuration={globalDuration}
+        onSeek={onGraphSeek}
+      />
 
       <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30 pb-4">
         <div className="w-full px-4 pt-2 pb-1 flex items-center gap-3 border-b border-gray-700 bg-gray-800">
@@ -470,6 +495,40 @@ export default function AnalyzerView({
                 <PersonStanding size={12} />
                 {activePose.status === 'done' ? 'Skeleton' : 'Analyze'}
                 {activePose.status === 'done' && activePose.showSkeleton ? <Check size={10} /> : null}
+              </button>
+            )}
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+            {/* View tagging (plan 6.1) — user picks the camera angle per
+                pane, no auto-detection; angle readouts key off this. */}
+            <button
+              onClick={() => onSetViewType('dtl')}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${
+                activeViewType === 'dtl'
+                  ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
+              }`}
+              title="Tag this pane as down-the-line view"
+            >
+              DTL
+            </button>
+            <button
+              onClick={() => onSetViewType('face-on')}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${
+                activeViewType === 'face-on'
+                  ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
+              }`}
+              title="Tag this pane as face-on view"
+            >
+              FO
+            </button>
+            {activeViewType === 'face-on' && (
+              <button
+                onClick={onToggleHandedness}
+                className="px-2 py-1 rounded text-xs font-medium bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600"
+                title="Golfer handedness — sets which arm is 'lead' for the lead-arm angle"
+              >
+                {activeHandedness}
               </button>
             )}
           </div>

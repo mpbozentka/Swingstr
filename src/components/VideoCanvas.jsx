@@ -3,6 +3,7 @@ import React, {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
   forwardRef,
   useImperativeHandle,
 } from 'react';
@@ -10,6 +11,7 @@ import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
 import { renderSkeleton } from '../utils/poseRenderer';
 import { sampleFrameAtTime } from '../constants/pose';
+import { computeSwingAngles } from '../utils/swingAngles';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
@@ -33,6 +35,8 @@ const VideoCanvas = forwardRef(
       trimEnd,
       poseFrames,
       showSkeleton,
+      viewType,
+      handedness,
     },
     ref
   ) => {
@@ -75,6 +79,43 @@ const VideoCanvas = forwardRef(
     // a redraw each frame so the skeleton tracks the playhead between React
     // renders (draw() otherwise only re-runs when its own deps change).
     const drawRef = useRef(null);
+
+    // Drives the angle readout card (text, not canvas) — a plain React state
+    // update on 'timeupdate'/'seeked' is plenty smooth for numbers, unlike
+    // the skeleton which needs the rAF loop to avoid visible lag.
+    const [readoutTime, setReadoutTime] = useState(0);
+    useEffect(() => {
+      const vid = videoRef.current;
+      if (!vid) return undefined;
+      const update = () => setReadoutTime(vid.currentTime);
+      vid.addEventListener('timeupdate', update);
+      vid.addEventListener('seeked', update);
+      return () => {
+        vid.removeEventListener('timeupdate', update);
+        vid.removeEventListener('seeked', update);
+      };
+    }, [src]);
+
+    // Rows render only once analysis is done (poseFrames populated) and a
+    // view type is tagged (plan 6.1) — no auto-detection of camera angle.
+    // addressFrame is the first cached frame of the analyzed range, used as
+    // the head-sway baseline. Capped at 5 rows (plan 6.3); face-on naturally
+    // produces 6 candidates so the lowest-priority one (hip turn) is dropped.
+    const angleRows = useMemo(() => {
+      if (!showSkeleton || !viewType || !poseFrames?.length) return [];
+      const vid = videoRef.current;
+      if (!vid?.videoWidth) return [];
+      const frame = sampleFrameAtTime(poseFrames, readoutTime);
+      if (!frame) return [];
+      return computeSwingAngles({
+        frame,
+        addressFrame: poseFrames[0],
+        viewType,
+        handedness,
+        videoWidth: vid.videoWidth,
+        videoHeight: vid.videoHeight,
+      }).slice(0, 5);
+    }, [showSkeleton, viewType, handedness, poseFrames, readoutTime]);
 
     // While playing, keep the playhead inside the trim window: loop back to
     // the in-point when the out-point is reached. Runs as a rAF loop because
@@ -625,6 +666,16 @@ const VideoCanvas = forwardRef(
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full"
               />
+              {angleRows.length > 0 && (
+                <div className="absolute top-12 left-4 z-20 pointer-events-none bg-gray-900/80 border border-sky-600/40 rounded px-2 py-1.5 font-mono text-[11px] text-sky-100 leading-tight space-y-0.5">
+                  {angleRows.map((row) => (
+                    <div key={row.label} className="flex justify-between gap-3">
+                      <span className="text-sky-400/70">{row.label}</span>
+                      <span>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();

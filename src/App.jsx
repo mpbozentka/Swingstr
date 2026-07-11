@@ -44,6 +44,11 @@ export default function Swingstr() {
   // confined to this window, and the future pose-analysis pass will only
   // process frames inside it.
   const [trims, setTrims] = useState({ left: { start: null, end: null }, right: { start: null, end: null } });
+  // Phase 2: per-side camera-angle tag driving which angle formulas apply
+  // (plan 6.1) — user-set, no auto-detection. Handedness only affects which
+  // arm counts as "lead" for the face-on lead-arm angle.
+  const [viewTypes, setViewTypes] = useState({ left: null, right: null });
+  const [handedness, setHandedness] = useState({ left: 'RH', right: 'RH' });
   const [toast, setToast] = useState(null); // { message, kind }
   // Side currently waiting on a URL input (null when modal closed)
   const [urlPromptSide, setUrlPromptSide] = useState(null);
@@ -142,6 +147,14 @@ export default function Swingstr() {
 
   const handleClearTrim = useCallback(() => {
     setTrims((prev) => ({ ...prev, [activeScreen]: { start: null, end: null } }));
+  }, [activeScreen]);
+
+  const handleSetViewType = useCallback((vt) => {
+    setViewTypes((prev) => ({ ...prev, [activeScreen]: prev[activeScreen] === vt ? null : vt }));
+  }, [activeScreen]);
+
+  const handleToggleHandedness = useCallback(() => {
+    setHandedness((prev) => ({ ...prev, [activeScreen]: prev[activeScreen] === 'RH' ? 'LH' : 'RH' }));
   }, [activeScreen]);
 
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
@@ -252,10 +265,12 @@ export default function Swingstr() {
     }
   }, [sync, hasSyncOffset, syncOffset]);
 
-  const handleGlobalScrub = useCallback((e) => {
-    let t = parseFloat(e.target.value);
-    // Keep the slider inside the active side's trim window so it doesn't
-    // visually jump ahead and snap back on the next timeupdate.
+  // Shared by the timeline slider and the angle-graph panel: clamp to the
+  // active side's trim window so the UI doesn't visually jump ahead and snap
+  // back on the next timeupdate, then seek whichever panes the current
+  // sync/active state says should move.
+  const scrubTo = useCallback((raw) => {
+    let t = raw;
     const trim = trims[activeScreen];
     if (trim.start != null) t = Math.max(trim.start, t);
     if (trim.end != null) t = Math.min(trim.end, t);
@@ -268,6 +283,10 @@ export default function Swingstr() {
       else rightRef.current?.seekTo(t);
     }
   }, [sync, activeScreen, hasSyncOffset, syncOffset, trims]);
+
+  const handleGlobalScrub = useCallback((e) => {
+    scrubTo(parseFloat(e.target.value));
+  }, [scrubTo]);
 
   const saveToStudent = useCallback(async () => {
     if (!saveData.studentId || !saveData.label) return;
@@ -413,6 +432,7 @@ export default function Swingstr() {
       globalTime={globalTime}
       globalDuration={globalDuration}
       onGlobalScrub={handleGlobalScrub}
+      onGraphSeek={scrubTo}
       onTimeUpdate={handleTimeUpdate}
       onLinkedScrub={handleLinkedScrub}
       showSequenceModal={showSequenceModal}
@@ -428,6 +448,12 @@ export default function Swingstr() {
       onAnalyze={() => analyzePose(activeScreen)}
       onCancelAnalysis={() => cancelPoseAnalysis(activeScreen)}
       onToggleSkeleton={() => togglePoseSkeleton(activeScreen)}
+      viewTypes={viewTypes}
+      handedness={handedness}
+      activeViewType={viewTypes[activeScreen]}
+      activeHandedness={handedness[activeScreen]}
+      onSetViewType={handleSetViewType}
+      onToggleHandedness={handleToggleHandedness}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
       onSetSyncPoint={handleSetSyncPoint}

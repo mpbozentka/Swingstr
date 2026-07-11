@@ -3,6 +3,13 @@
 Research + phased implementation spec for adding computer-vision swing
 analysis to Swingstr. Written 2026-07-10, updated after Phase 0 shipped.
 
+**Status as of 2026-07-11:** Phase 0 and Phase 1 are shipped (committed).
+Phase 2 (angle readouts) and Phase 3 (angle graphs) are both implemented in
+the working tree, staged but **not yet committed or tested by Mitch** — see
+their headers below. Note both landed in the same working session, ahead of
+the "one phase per session" rule in Section 2; flagged, not silently
+corrected.
+
 This document is written so any competent model or developer can implement it
 without re-deriving decisions. Follow it exactly; deviations should be flagged
 to Mitch, not silently improvised. When something in the codebase contradicts
@@ -157,7 +164,7 @@ later phases need from it: read `trims[side]` to bound the analysis range.
 
 ---
 
-## 5. Phase 1 — Skeleton overlay
+## 5. Phase 1 — Skeleton overlay ✅ SHIPPED (2026-07-10)
 
 ### 5.1 Dependency and assets (approved — no need to re-ask)
 
@@ -368,7 +375,12 @@ pan/zoom-transformed context):
 
 ---
 
-## 6. Phase 2 — Live angle readouts
+## 6. Phase 2 — Live angle readouts 🔧 IMPLEMENTED (2026-07-11), staged — not committed, not yet tested by Mitch
+
+Built in `src/utils/swingAngles.js` (angle formulas, shared with Phase 3's
+graph), `src/App.jsx` (`viewTypes` / `handedness` state), `AnalyzerView.jsx`
+(DTL/FO toggle + RH/LH toggle in the timeline control cluster), and
+`VideoCanvas.jsx` (readout card overlay). Matches 6.1–6.3 below as written.
 
 ### 6.1 View tagging
 
@@ -429,14 +441,26 @@ skeleton (one button controls both in this phase).
 
 ---
 
-## 7. Phase 3 — Gears-style graphs
+## 7. Phase 3 — Gears-style graphs 🔧 IMPLEMENTED (2026-07-11), staged — not committed, not yet tested by Mitch
 
-- Collapsible panel between `<main>` and the footer (height ~160px), one
-  chart, hand-rolled SVG — **no chart library** (bundle stays lean; the
-  dataviz needs are two polylines and a playhead).
-- X axis = time within trim; Y = degrees. One `<polyline>` per metric,
-  metric picker as small pill buttons (default: spine angle for DTL,
-  shoulder tilt for FO).
+Built as `src/components/SwingGraphPanel.jsx`, wired into `AnalyzerView.jsx`
+between `<main>` and the footer. Matches the spec below, which already
+reflects the post-QA changes made while building it (120px height, full-
+duration X axis with trim shading, playhead lockstep with the timeline
+slider, live value in the header).
+
+- Collapsible panel between `<main>` and the footer (height ~120px — was
+  160px, shrunk 2026-07-10 after layout QA), one chart, hand-rolled SVG —
+  **no chart library** (bundle stays lean; the dataviz needs are two
+  polylines and a playhead).
+- X axis = full video duration with the trimmed-out regions shaded, matching
+  the timeline slider so graph playhead and slider thumb move in lockstep
+  (changed 2026-07-10 from trim-only after layout QA — two stacked time
+  scales confused scrubbing); Y = degrees. One trace per metric (drawn as a
+  `<path>` with pen-lifts at detection gaps), metric picker as small pill
+  buttons (default: spine angle for DTL, shoulder tilt for FO). Header's
+  right side shows the live metric value at the playhead in single-trace
+  mode.
 - Playhead: vertical line at `globalTime`, updates via the existing
   `onTimeUpdate` flow. Click/drag on the SVG → `seekTo` that time (reuse the
   clamped seek — it already respects trim).
