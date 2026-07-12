@@ -356,6 +356,8 @@ export default function AnalyzerView({
         globalTime={globalTime}
         globalDuration={globalDuration}
         onSeek={onGraphSeek}
+        markers={markers}
+        layout={layout}
       />
 
       <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30 pb-4">

@@ -327,20 +327,49 @@ export default function Swingstr() {
     setToast({ message: 'Saved to student library.', kind: 'success' });
   }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 
+  // Tracks whether P is currently physically held — no native modifier flag
+  // exists for letter keys, so this is tracked by hand. Reset on keyup AND
+  // on window blur: if the tab loses focus while P is physically down (e.g.
+  // alt-tab), the keyup event never fires, and without the blur reset this
+  // would get stuck "true" forever, silently turning every future digit
+  // press into a "set marker" until the user taps P again to toggle it off.
+  const pHeldRef = useRef(false);
+
+  useEffect(() => {
+    const handleKeyUp = (e) => {
+      if (e.code === 'KeyP') pHeldRef.current = false;
+    };
+    const handleBlur = () => { pHeldRef.current = false; };
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
   useEffect(() => {
     const isTextish = (el) =>
       !!el && (el.matches?.(':where(input, textarea, select, [contenteditable=""], [contenteditable="true"])') ?? false);
 
     const handleKeyDown = (e) => {
       if (isTextish(document.activeElement)) return;
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        seek(-0.05);
+      if (e.code === 'KeyP') {
+        pHeldRef.current = true; // a lone P does nothing on its own — no preventDefault
         return;
       }
-      if (e.key === 'ArrowRight') {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const dir = e.key === 'ArrowRight' ? 1 : -1;
+        if (pHeldRef.current) {
+          // One marker per press — stepping is a discrete action; letting it
+          // repeat-fire would blow past several markers while the combo is held.
+          if (e.repeat) return;
+          e.preventDefault();
+          jumpRelativeMarker(activeScreen, dir);
+          return;
+        }
         e.preventDefault();
-        seek(0.05);
+        seek(dir * 0.05);
         return;
       }
       if (e.key === ' ') {
@@ -349,12 +378,12 @@ export default function Swingstr() {
         return;
       }
       // Block setting/jumping on auto-repeat to avoid spamming the decoder
-      // (#9). Arrow seeks above still respond to repeat.
+      // (#9). Plain-arrow seeks above still respond to repeat.
       if (e.repeat) return;
-      const shiftDigit = e.shiftKey && e.code?.match(/^Digit([0-9])$/);
+      const pDigit = pHeldRef.current && e.code?.match(/^Digit([0-9])$/);
       const digitMatch = e.key.match(/^[0-9]$/);
-      if (shiftDigit) {
-        const keyIndex = shiftDigit[1] === '0' ? 9 : parseInt(shiftDigit[1], 10) - 1;
+      if (pDigit) {
+        const keyIndex = pDigit[1] === '0' ? 9 : parseInt(pDigit[1], 10) - 1;
         e.preventDefault();
         handleSetMarker(activeScreen, keyIndex, globalTime);
       } else if (digitMatch && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
@@ -365,7 +394,7 @@ export default function Swingstr() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay, handleSetMarker, jumpToMarker, activeScreen, globalTime]);
+  }, [seek, togglePlay, handleSetMarker, jumpToMarker, jumpRelativeMarker, activeScreen, globalTime]);
 
   const toastEl = (
     <Toast

@@ -16,7 +16,7 @@
  * @property {string} id
  * @property {number} index
  * @property {number} time     - Seconds into the video
- * @property {string} label    - Display label
+ * @property {string} label    - Display label ("P1"…"P10")
  */
 
 /**
