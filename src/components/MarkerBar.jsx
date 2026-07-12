@@ -108,9 +108,6 @@ export default function MarkerBar({
                       }}
                       className="flex-1 text-left text-sm text-gray-200"
                     >
-                      <span className="text-purple-400 font-mono text-xs mr-2">
-                        {i === 9 ? '0' : i + 1}
-                      </span>
                       {label}
                       {existing && (
                         <span className="text-gray-500 text-xs ml-2">
@@ -134,7 +131,7 @@ export default function MarkerBar({
               })}
             </div>
             <div className="text-[10px] text-gray-500 mt-1 px-1 border-t border-gray-700 pt-1">
-              Tip: Shift+1-0 to set, 1-0 to jump
+              Tip: Hold P + 1-0 to set, 1-0 to jump, P + ←/→ to step markers
             </div>
           </div>
         )}

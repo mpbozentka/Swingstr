@@ -5,7 +5,17 @@ const STEP = 1 / 30; // seconds of *playback* time per sample — see plan 5.4
 const SMOOTH_KERNEL = [0.1, 0.2, 0.4, 0.2, 0.1]; // MUST stay symmetric — see smoothFrames
 const PROGRESS_UPDATE_EVERY = 5; // throttle re-renders during the seek-step loop
 
-const idleSideState = Object.freeze({ status: 'idle', progress: 0, frames: null, showSkeleton: false });
+const idleSideState = Object.freeze({
+  status: 'idle',
+  progress: 0,
+  frames: null,
+  showSkeleton: false,
+  // Pixel dims of the analyzed video, captured at analysis time — angle math
+  // needs them for aspect correction (plan 9.9), and consumers outside
+  // VideoCanvas (the graph panel) can't read the <video> element in render.
+  videoWidth: null,
+  videoHeight: null,
+});
 
 function blendCoords(curr, neighbors, key) {
   return curr.map((lm, li) => {
@@ -148,7 +158,14 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
       if (abortRef.current[side]) {
         updateSide(side, { status: 'idle', progress: 0, frames: null });
       } else {
-        updateSide(side, { status: 'done', progress: 1, frames: smoothFrames(frames), showSkeleton: true });
+        updateSide(side, {
+          status: 'done',
+          progress: 1,
+          frames: smoothFrames(frames),
+          showSkeleton: true,
+          videoWidth: vid.videoWidth,
+          videoHeight: vid.videoHeight,
+        });
       }
     } catch (err) {
       console.error('[usePoseAnalysis] analysis failed', err);
