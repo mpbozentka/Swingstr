@@ -219,6 +219,50 @@ const VideoCanvas = forwardRef(
       return tempCanvas.toDataURL('image/jpeg', 0.9);
     }, []);
 
+    /**
+     * Paint this pane exactly as it looks on screen (video + zoom/pan +
+     * telestration + skeleton overlay) into an arbitrary rect of another
+     * canvas. Used by the video-clip recorder to composite one or two panes
+     * into a single frame without duplicating the draw logic.
+     */
+    const drawExportFrame = useCallback((ctx, dest) => {
+      const vid = videoRef.current;
+      const container = containerRef.current;
+      const overlay = canvasRef.current;
+      if (!ctx || !vid || !container || !overlay) return;
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      if (!cw || !ch) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(dest.x, dest.y, dest.w, dest.h);
+      ctx.clip();
+      ctx.translate(dest.x, dest.y);
+      ctx.scale(dest.w / cw, dest.h / ch);
+
+      if (vid.videoWidth) {
+        const r = computeVideoRect(vid, container);
+        ctx.save();
+        // Mirror the CSS transform on the <video>: translate(pan) then
+        // scale(zoom) about the container centre.
+        ctx.translate(panX, panY);
+        ctx.translate(cw / 2, ch / 2);
+        ctx.scale(zoomLevel, zoomLevel);
+        ctx.translate(-cw / 2, -ch / 2);
+        try {
+          ctx.drawImage(vid, r.x, r.y, r.w, r.h);
+        } catch (e) {
+          console.warn('drawExportFrame: drawImage failed', e.message);
+        }
+        ctx.restore();
+      }
+
+      // Overlay canvas is already sized to the container, so it maps 1:1.
+      ctx.drawImage(overlay, 0, 0, cw, ch);
+      ctx.restore();
+    }, [panX, panY, zoomLevel]);
+
     const captureFrameAtTime = useCallback(async (time) => {
       const vid = videoRef.current;
       const container = containerRef.current;
@@ -271,6 +315,11 @@ const VideoCanvas = forwardRef(
         },
         getSnapshot: takeSnapshot,
         captureFrameAtTime,
+        drawExportFrame,
+        getPaneSize: () => ({
+          w: containerRef.current?.clientWidth ?? 0,
+          h: containerRef.current?.clientHeight ?? 0,
+        }),
         // Raw element access for the pose-analysis loop, which drives its own
         // seek/detect steps (needs the actual <video> to feed the landmarker).
         getVideoElement: () => videoRef.current,
@@ -285,7 +334,7 @@ const VideoCanvas = forwardRef(
           return videoRef.current?.duration ?? 0;
         },
       }),
-      [takeSnapshot, captureFrameAtTime, src, clampToTrim]
+      [takeSnapshot, captureFrameAtTime, drawExportFrame, src, clampToTrim]
     );
 
     useEffect(() => {

@@ -160,6 +160,21 @@ export default function Swingstr() {
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
 
+  // When the screens are linked, a P-marker belongs to the swing, not to one
+  // video: dropping P3 on the active side also drops P3 on the other side at
+  // the matching (sync-offset) time, so both videos carry the same checkpoints.
+  const setMarkerLinked = useCallback((side, index, time) => {
+    handleSetMarker(side, index, time);
+    if (!sync) return;
+    const otherSide = side === 'left' ? 'right' : 'left';
+    const otherRef = otherSide === 'left' ? leftRef : rightRef;
+    if (!otherRef.current?.hasVideo) return;
+    const raw = side === 'left' ? time - syncOffset : time + syncOffset;
+    const otherDuration = otherRef.current.duration || 0;
+    const otherTime = Math.min(Math.max(0, raw), otherDuration > 0 ? otherDuration : raw);
+    handleSetMarker(otherSide, index, otherTime);
+  }, [sync, syncOffset, handleSetMarker]);
+
   // Drift correction loop (#6): different decode timings would let the two
   // videos visibly slip apart over a few seconds of synced playback. While
   // playing in sync, run a per-frame check and snap the right video back
@@ -385,7 +400,7 @@ export default function Swingstr() {
       if (pDigit) {
         const keyIndex = pDigit[1] === '0' ? 9 : parseInt(pDigit[1], 10) - 1;
         e.preventDefault();
-        handleSetMarker(activeScreen, keyIndex, globalTime);
+        setMarkerLinked(activeScreen, keyIndex, globalTime);
       } else if (digitMatch && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
         const keyIndex = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
         e.preventDefault();
@@ -394,7 +409,7 @@ export default function Swingstr() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay, handleSetMarker, jumpToMarker, jumpRelativeMarker, activeScreen, globalTime]);
+  }, [seek, togglePlay, setMarkerLinked, jumpToMarker, jumpRelativeMarker, activeScreen, globalTime]);
 
   const toastEl = (
     <Toast
@@ -485,10 +500,11 @@ export default function Swingstr() {
       onToggleHandedness={handleToggleHandedness}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
+      syncOffset={syncOffset}
       onSetSyncPoint={handleSetSyncPoint}
       onClearSyncPoint={handleClearSyncPoint}
       activeMarkers={markers[activeScreen]}
-      onSetMarker={(index, time) => handleSetMarker(activeScreen, index, time)}
+      onSetMarker={(index, time) => setMarkerLinked(activeScreen, index, time)}
       onRemoveMarker={(index) => handleRemoveMarker(activeScreen, index)}
       onJumpToMarker={(index) => jumpToMarker(activeScreen, index)}
       onPrevMarker={() => jumpRelativeMarker(activeScreen, -1)}

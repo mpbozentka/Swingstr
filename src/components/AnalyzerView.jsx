@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Download,
   Play,
   Pause,
   Trash2,
@@ -33,7 +34,7 @@ import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
 import SaveModal from './SaveModal';
 import MarkerBar from './MarkerBar';
-import SwingSequenceModal from './SwingSequenceModal';
+import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
 import SwingGraphPanel from './SwingGraphPanel';
@@ -98,6 +99,7 @@ export default function AnalyzerView({
   onToggleHandedness,
   syncPoints,
   hasSyncOffset,
+  syncOffset = 0,
   onSetSyncPoint,
   onClearSyncPoint,
   activeMarkers,
@@ -144,7 +146,7 @@ export default function AnalyzerView({
         onSave={saveToStudent}
       />
 
-      <SwingSequenceModal
+      <ExportModal
         show={showSequenceModal}
         onClose={() => setShowSequenceModal(false)}
         leftRef={leftRef}
@@ -153,6 +155,8 @@ export default function AnalyzerView({
         rightVideo={rightVideo}
         leftMarkers={markers?.left || []}
         rightMarkers={markers?.right || []}
+        syncOffset={syncOffset}
+        playbackSpeed={speed}
       />
 
       <div onClick={(e) => e.stopPropagation()}>
@@ -173,13 +177,13 @@ export default function AnalyzerView({
         )}
       </div>
 
-      <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
+      <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <img
               src="/swingstr-logo.jpg"
               alt="Swingstr"
-              className="h-10 w-10 rounded-full border-2 border-purple-500 object-cover"
+              className="h-8 w-8 rounded-full border-2 border-purple-500 object-cover"
               onError={(e) => {
                 e.target.style.display = 'none';
               }}
@@ -360,8 +364,8 @@ export default function AnalyzerView({
         layout={layout}
       />
 
-      <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30 pb-4">
-        <div className="w-full px-4 pt-2 pb-1 flex items-center gap-3 border-b border-gray-700 bg-gray-800">
+      <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30">
+        <div className="w-full px-4 py-0 flex items-center gap-3 border-b border-gray-700 bg-gray-800">
           <span className="text-xs font-mono text-gray-400 w-12 text-right">
             {globalTime.toFixed(1)}s
           </span>
@@ -547,7 +551,7 @@ export default function AnalyzerView({
           onNext={onNextMarker}
         />
 
-        <div className="flex items-center justify-between px-4 py-2 h-14">
+        <div className="flex items-center justify-between px-4 h-9">
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <IconButton
               onClick={() => setTool('move')}
@@ -556,7 +560,7 @@ export default function AnalyzerView({
             >
               <MousePointer2 size={20} />
             </IconButton>
-            <div className="w-px h-8 bg-gray-700 mx-1" />
+            <div className="w-px h-6 bg-gray-700 mx-1" />
 
             <MenuButton
               icon={PenTool}
@@ -574,7 +578,7 @@ export default function AnalyzerView({
               onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')}
             />
 
-            <div className="w-px h-8 bg-gray-700 mx-1" />
+            <div className="w-px h-6 bg-gray-700 mx-1" />
             <IconButton
               onClick={clearShapes}
               title="Clear All"
@@ -591,19 +595,19 @@ export default function AnalyzerView({
               title="Previous frame (←)"
               className="text-gray-400 hover:text-white"
             >
-              <ChevronLeft size={28} />
+              <ChevronLeft size={24} />
             </button>
             <button
               onClick={togglePlay}
               aria-label={isPlaying ? 'Pause' : 'Play'}
               aria-pressed={isPlaying}
               title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-              className="bg-purple-600 text-white p-2 rounded-full hover:bg-purple-500 shadow-lg active:scale-95"
+              className="bg-purple-600 text-white p-1.5 rounded-full hover:bg-purple-500 shadow-lg active:scale-95"
             >
               {isPlaying ? (
-                <Pause size={24} fill="currentColor" />
+                <Pause size={20} fill="currentColor" />
               ) : (
-                <Play size={24} fill="currentColor" className="ml-1" />
+                <Play size={20} fill="currentColor" className="ml-1" />
               )}
             </button>
             <button
@@ -612,7 +616,7 @@ export default function AnalyzerView({
               title="Next frame (→)"
               className="text-gray-400 hover:text-white"
             >
-              <ChevronRight size={28} />
+              <ChevronRight size={24} />
             </button>
           </div>
 
@@ -629,9 +633,9 @@ export default function AnalyzerView({
             </IconButton>
             <IconButton
               onClick={() => setShowSequenceModal(true)}
-              title="Swing Sequence Export"
+              title="Export (sequence or video)"
             >
-              <LayoutGrid size={20} />
+              <Download size={20} />
             </IconButton>
             <IconButton
               onClick={openSaveModal}

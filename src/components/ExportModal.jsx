@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { X, Download, Loader2, LayoutGrid } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { X, Download, Loader2, LayoutGrid, Film, Video } from 'lucide-react';
 import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import {
@@ -7,8 +7,13 @@ import {
   getEvenFrameTimes,
   getMarkerFrameTimes,
 } from '../utils/swingSequenceExport';
+import { recordClip, getMarkerRange, pickRecordingType } from '../utils/videoClipExport';
 
-export default function SwingSequenceModal({
+// Lead-in / lead-out around the marker span so the clip doesn't start and
+// end abruptly mid-swing.
+const CLIP_PAD = 0.5;
+
+export default function ExportModal({
   show,
   onClose,
   leftRef,
@@ -17,7 +22,10 @@ export default function SwingSequenceModal({
   rightVideo,
   leftMarkers,
   rightMarkers,
+  syncOffset = 0,
+  playbackSpeed = 1,
 }) {
+  const [mode, setMode] = useState('sequence');
   const [source, setSource] = useState('left');
   const [frameCount, setFrameCount] = useState(5);
   const [selectionMethod, setSelectionMethod] = useState('even');
@@ -29,41 +37,108 @@ export default function SwingSequenceModal({
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState(null);
 
+  // Video-clip export state
+  const [clipSpeed, setClipSpeed] = useState(playbackSpeed || 1);
+  const [recording, setRecording] = useState(false);
+  const [recProgress, setRecProgress] = useState(0);
+  const [clip, setClip] = useState(null); // { url, ext }
+  const [clipError, setClipError] = useState(null);
+
   useEscapeClose(show, onClose);
 
   const hasLeft = !!leftVideo;
   const hasRight = !!rightVideo;
   const hasBoth = hasLeft && hasRight;
 
+  // In "From Markers" mode the sequence should have exactly one frame per
+  // marker the user actually set, not a fixed 5/8/10 — the markers are the
+  // checkpoints they care about.
+  const primaryMarkers = source === 'right' ? rightMarkers : leftMarkers;
+  const markerDriven = selectionMethod === 'markers' && primaryMarkers.length > 0;
+  const effectiveFrameCount = markerDriven ? primaryMarkers.length : frameCount;
+
+  // ---- Video clip export -------------------------------------------------
+  // The clip always covers the whole swing: earliest marker to latest, with a
+  // half-second of breathing room on each end. One video loaded exports on its
+  // own; two loaded export side by side, the second shifted by the sync offset
+  // so the matching P-markers line up.
+  const clipPrimaryRef = hasLeft ? leftRef : rightRef;
+  const clipSecondaryRef = hasBoth ? rightRef : null;
+  const clipMarkers = hasLeft ? leftMarkers : rightMarkers;
+  const clipDuration = clipPrimaryRef?.current?.duration ?? 0;
+  const clipRange = getMarkerRange(clipMarkers, clipDuration, CLIP_PAD);
+  const clipSorted = [...clipMarkers].sort((a, b) => a.time - b.time);
+  const recordingType = pickRecordingType();
+
+  useEffect(() => {
+    if (show) setClipSpeed(playbackSpeed || 1);
+  }, [show, playbackSpeed]);
+
+  // Revoke the object URL when a new clip replaces it or the modal unmounts.
+  useEffect(() => () => { if (clip?.url) URL.revokeObjectURL(clip.url); }, [clip]);
+
+  const handleRecord = useCallback(async () => {
+    if (!clipRange) return;
+    setClipError(null);
+    setClip(null);
+    setRecording(true);
+    setRecProgress(0);
+    try {
+      const { blob, ext } = await recordClip({
+        primaryRef: clipPrimaryRef,
+        secondaryRef: clipSecondaryRef,
+        startTime: clipRange.start,
+        endTime: clipRange.end,
+        secondaryOffset: syncOffset,
+        speed: clipSpeed,
+        onProgress: setRecProgress,
+      });
+      setClip({ url: URL.createObjectURL(blob), ext });
+    } catch (err) {
+      console.error('Video clip export failed:', err);
+      setClipError(err.message || 'Recording failed.');
+    } finally {
+      setRecording(false);
+    }
+  }, [clipRange, clipPrimaryRef, clipSecondaryRef, syncOffset, clipSpeed]);
+
+  const handleClipDownload = useCallback(() => {
+    if (!clip) return;
+    const link = document.createElement('a');
+    link.download = `swing-clip-${Date.now()}.${clip.ext}`;
+    link.href = clip.url;
+    link.click();
+  }, [clip]);
+
   const getFrameTimes = useCallback((markers, ref) => {
     const duration = ref?.current?.duration ?? 0;
     if (duration <= 0) return [];
     if (selectionMethod === 'markers' && markers.length > 0) {
-      return getMarkerFrameTimes(markers, duration, frameCount);
+      return getMarkerFrameTimes(markers, duration, effectiveFrameCount);
     }
-    return getEvenFrameTimes(duration, frameCount);
-  }, [selectionMethod, frameCount]);
+    return getEvenFrameTimes(duration, effectiveFrameCount);
+  }, [selectionMethod, effectiveFrameCount]);
 
   const getLabels = useCallback((markers) => {
     if (!showLabels) return [];
     if (selectionMethod === 'markers' && markers.length > 0) {
       const sorted = [...markers].sort((a, b) => a.time - b.time);
-      const labels = sorted.slice(0, frameCount).map((m) => m.label);
+      const labels = sorted.slice(0, effectiveFrameCount).map((m) => m.label);
       // Pad with numbered labels if needed
-      while (labels.length < frameCount) {
+      while (labels.length < effectiveFrameCount) {
         labels.push(`Frame ${labels.length + 1}`);
       }
       return labels;
     }
     // Default labels for even spacing
-    if (frameCount <= 5) {
-      return ['Setup', 'Takeaway', 'Top', 'Impact', 'Finish'].slice(0, frameCount);
+    if (effectiveFrameCount <= 5) {
+      return ['Setup', 'Takeaway', 'Top', 'Impact', 'Finish'].slice(0, effectiveFrameCount);
     }
-    if (frameCount <= 8) {
-      return ['Address', 'Takeaway', 'Halfway', 'Top', 'Transition', 'Impact', 'Follow-Through', 'Finish'].slice(0, frameCount);
+    if (effectiveFrameCount <= 8) {
+      return ['Address', 'Takeaway', 'Halfway', 'Top', 'Transition', 'Impact', 'Follow-Through', 'Finish'].slice(0, effectiveFrameCount);
     }
-    return DEFAULT_MARKER_LABELS.slice(0, frameCount);
-  }, [showLabels, selectionMethod, frameCount]);
+    return DEFAULT_MARKER_LABELS.slice(0, effectiveFrameCount);
+  }, [showLabels, selectionMethod, effectiveFrameCount]);
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
@@ -119,7 +194,7 @@ export default function SwingSequenceModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="swing-seq-title"
+      aria-labelledby="export-modal-title"
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={onClose}
     >
@@ -129,9 +204,28 @@ export default function SwingSequenceModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-700">
-          <div className="flex items-center gap-2">
-            <LayoutGrid size={20} className="text-purple-400" />
-            <h2 id="swing-seq-title" className="text-lg font-bold text-white">Swing Sequence Export</h2>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Download size={20} className="text-purple-400" />
+              <h2 id="export-modal-title" className="text-lg font-bold text-white">Export</h2>
+            </div>
+            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+              {[
+                { value: 'sequence', label: 'Sequence', icon: LayoutGrid },
+                { value: 'video', label: 'Video', icon: Film },
+              ].map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setMode(value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    mode === value ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -145,6 +239,8 @@ export default function SwingSequenceModal({
         <div className="flex flex-1 overflow-hidden">
           {/* Config panel */}
           <div className="w-72 shrink-0 border-r border-gray-700 p-4 overflow-y-auto space-y-5">
+            {mode === 'sequence' ? (
+              <>
             {/* Video source */}
             <div>
               <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Video Source</label>
@@ -175,6 +271,11 @@ export default function SwingSequenceModal({
             {/* Frame count */}
             <div>
               <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Frames</label>
+              {markerDriven ? (
+                <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300">
+                  {effectiveFrameCount} <span className="text-gray-500">— one per marker set</span>
+                </div>
+              ) : (
               <div className="mt-2 flex gap-1">
                 {[5, 8, 10].map((n) => (
                   <button
@@ -190,6 +291,7 @@ export default function SwingSequenceModal({
                   </button>
                 ))}
               </div>
+              )}
             </div>
 
             {/* Selection method */}
@@ -291,11 +393,132 @@ export default function SwingSequenceModal({
                 </>
               )}
             </button>
+              </>
+            ) : (
+              <>
+                {/* Clip range */}
+                <div>
+                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Clip Range</label>
+                  {clipRange ? (
+                    <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300">
+                      {clipSorted[0].label} &rarr; {clipSorted[clipSorted.length - 1].label}
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {clipRange.start.toFixed(2)}s &ndash; {clipRange.end.toFixed(2)}s
+                        {' '}({(clipRange.end - clipRange.start).toFixed(1)}s, incl. {CLIP_PAD}s buffer)
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-amber-400">
+                      Set at least two markers to define a clip range.
+                    </div>
+                  )}
+                </div>
+
+                {/* Layout readout */}
+                <div>
+                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Layout</label>
+                  <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300">
+                    {hasBoth ? 'Side by side' : 'Single video'}
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {hasBoth
+                        ? `Right video offset by ${syncOffset.toFixed(2)}s to line up markers`
+                        : 'Only one video loaded'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Speed */}
+                <div>
+                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Speed</label>
+                  <div className="mt-2 flex gap-1">
+                    {[1, 0.5, 0.25].map((sp) => (
+                      <button
+                        key={sp}
+                        onClick={() => setClipSpeed(sp)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          clipSpeed === sp ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        }`}
+                      >
+                        {sp}x
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1.5">
+                    Recorded in real time &mdash; this takes about
+                    {' '}{clipRange ? Math.ceil((clipRange.end - clipRange.start) / clipSpeed) : 0}s.
+                    No audio.
+                  </p>
+                </div>
+
+                {/* Format */}
+                <div>
+                  <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Format</label>
+                  <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300 uppercase">
+                    {recordingType?.ext || 'n/a'}
+                    {recordingType && recordingType.ext !== 'mp4' && (
+                      <span className="block text-[10px] normal-case text-amber-400 mt-0.5">
+                        This browser can&rsquo;t record MP4 &mdash; falling back to WebM.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {clipError && (
+                  <p className="text-xs text-red-400">{clipError}</p>
+                )}
+
+                <button
+                  onClick={handleRecord}
+                  disabled={recording || !clipRange}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-purple-800 disabled:cursor-not-allowed text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  {recording ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Recording {Math.round(recProgress * 100)}%
+                    </>
+                  ) : (
+                    <>
+                      <Video size={18} />
+                      Record Clip
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Preview panel */}
           <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-auto bg-gray-950">
-            {preview ? (
+            {mode === 'video' ? (
+              clip ? (
+                <div className="space-y-4 w-full">
+                  <video
+                    src={clip.url}
+                    controls
+                    loop
+                    className="w-full rounded-lg border border-gray-700 bg-black"
+                  />
+                  <button
+                    onClick={handleClipDownload}
+                    className="mx-auto flex items-center gap-2 px-6 py-2.5 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <Download size={18} />
+                    Download {clip.ext.toUpperCase()}
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500">
+                  <Film size={48} className="mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">
+                    {recording ? 'Recording the clip — leave this window open…' : 'Set your options and click Record Clip'}
+                  </p>
+                  <p className="text-xs mt-1 text-gray-600">
+                    {hasBoth ? 'Side-by-side, markers aligned' : 'Single video'}
+                  </p>
+                </div>
+              )
+            ) : preview ? (
               <div className="space-y-4 w-full">
                 <img
                   src={preview}
@@ -315,7 +538,7 @@ export default function SwingSequenceModal({
                 <LayoutGrid size={48} className="mx-auto mb-3 opacity-30" />
                 <p className="text-sm">Configure settings and click Generate</p>
                 <p className="text-xs mt-1 text-gray-600">
-                  {source === 'both' ? `${frameCount}x2 grid` : `${frameCount}x1 strip`}
+                  {source === 'both' ? `${effectiveFrameCount}x2 grid` : `${effectiveFrameCount}x1 strip`}
                 </p>
               </div>
             )}
