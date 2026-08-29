@@ -17,7 +17,7 @@ export default function MarkerBar({
   const sortedMarkers = [...markers].sort((a, b) => a.time - b.time);
 
   return (
-    <div className="w-full px-4 flex items-center gap-2 py-1">
+    <div className="w-full px-4 flex items-center gap-2 py-0">
       {/* Prev marker */}
       <button
         onClick={onPrev}
@@ -29,7 +29,7 @@ export default function MarkerBar({
       </button>
 
       {/* Marker timeline strip */}
-      <div className="flex-1 relative h-6 flex items-center">
+      <div className="flex-1 relative h-5 flex items-center">
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-700 rounded" />
 
         {duration > 0 && sortedMarkers.map((m) => {

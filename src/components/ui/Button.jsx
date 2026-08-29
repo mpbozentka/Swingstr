@@ -29,7 +29,7 @@ export function IconButton({ onClick, active, children, title, className = '', .
       aria-label={rest['aria-label'] ?? (title || undefined)}
       aria-pressed={active}
       {...rest}
-      className={`p-2 rounded-lg transition-all flex items-center justify-center ${active
+      className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${active
           ? 'bg-purple-600 text-white shadow-lg'
           : 'text-gray-400 hover:bg-gray-700 hover:text-white'
         } ${className}`}
@@ -43,7 +43,7 @@ export function MenuButton({ icon: Icon, label, active, onClick, isOpen }) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${active || isOpen
+      className={`relative flex items-center gap-2 px-3 py-1 rounded-lg transition-all ${active || isOpen
           ? 'bg-gray-700 text-white'
           : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'
         }`}
