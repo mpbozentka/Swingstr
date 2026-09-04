@@ -4,7 +4,7 @@ import {
   releaseObjectUrl,
   releaseAllObjectUrls,
 } from '../utils/storage';
-import { parseVideoUrl } from '../utils/url';
+import { isYouTubeUrl, parseVideoUrl } from '../utils/url';
 
 /**
  * Owns the left/right video sources. Keeps both the playable URL (object URL
@@ -45,10 +45,37 @@ export function useVideoSources({ onClear } = {}) {
   /**
    * Accepts a raw URL string from the parent (which owns the prompt UI) and
    * returns either an error string (caller surfaces it) or null on success.
+   * YouTube URLs are downloaded by the desktop app, then loaded as a local file.
    */
-  const uploadUrl = useCallback((side, raw) => {
+  const uploadUrl = useCallback(async (side, raw) => {
     const url = parseVideoUrl(raw);
     if (!url) return { error: 'Not a valid http(s) video URL.' };
+
+    if (isYouTubeUrl(url)) {
+      const desktop = typeof window !== 'undefined' ? window.swingstrDesktop : null;
+      if (!desktop?.downloadYouTube) {
+        return { error: 'YouTube links only work in the Swingstr desktop app.' };
+      }
+      try {
+        const result = await desktop.downloadYouTube(url);
+        if (result?.error) return { error: result.error };
+        const res = await fetch(result.playUrl);
+        if (!res.ok) return { error: "Downloaded, but couldn't load the clip." };
+        const blob = await res.blob();
+        const file = new File(
+          [blob],
+          result.fileName || 'youtube.mp4',
+          { type: blob.type || 'video/mp4' }
+        );
+        releaseObjectUrl(`video:${side}`);
+        const objectUrl = registerObjectUrl(`video:${side}`, file);
+        setSource(side, objectUrl, file);
+        return null;
+      } catch (err) {
+        return { error: err?.message || "Couldn't download that YouTube clip." };
+      }
+    }
+
     releaseObjectUrl(`video:${side}`);
     setSource(side, url, null);
     return null;

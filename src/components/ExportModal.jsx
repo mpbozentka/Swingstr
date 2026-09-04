@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { X, Download, Loader2, LayoutGrid, Film, Video } from 'lucide-react';
 import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import {
   generateSwingSequence,
   getEvenFrameTimes,
-  getMarkerFrameTimes,
+  getMarkerColumns,
 } from '../utils/swingSequenceExport';
 import { recordClip, getMarkerRange, pickRecordingType } from '../utils/videoClipExport';
 
@@ -32,6 +32,7 @@ export default function ExportModal({
   const [showLabels, setShowLabels] = useState(true);
   const [showTitle, setShowTitle] = useState(true);
   const [titleText, setTitleText] = useState('Swing Sequence');
+  const [orientation, setOrientation] = useState('horizontal');
   const [format, setFormat] = useState('jpeg');
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -50,12 +51,28 @@ export default function ExportModal({
   const hasRight = !!rightVideo;
   const hasBoth = hasLeft && hasRight;
 
-  // In "From Markers" mode the sequence should have exactly one frame per
-  // marker the user actually set, not a fixed 5/8/10 — the markers are the
-  // checkpoints they care about.
+  // In "From Markers" mode the sequence has exactly one frame per marker the
+  // user actually set — one marker, one frame; ten markers, ten frames. Never a
+  // fixed 5/8/10, and never a subset.
   const primaryMarkers = source === 'right' ? rightMarkers : leftMarkers;
-  const markerDriven = selectionMethod === 'markers' && primaryMarkers.length > 0;
-  const effectiveFrameCount = markerDriven ? primaryMarkers.length : frameCount;
+  const markerColumns = useMemo(() => getMarkerColumns({
+    primaryMarkers,
+    secondaryMarkers: source === 'both' ? rightMarkers : null,
+    labelFor: (i) => DEFAULT_MARKER_LABELS[i],
+  }), [primaryMarkers, rightMarkers, source]);
+  const markerDriven = selectionMethod === 'markers' && markerColumns.length > 0;
+  const effectiveFrameCount = markerDriven ? markerColumns.length : frameCount;
+
+  // Markers are the point of a swing sequence. If any are set, open on them
+  // rather than making the user notice the toggle before every export.
+  useEffect(() => {
+    if (!show) return;
+    setSelectionMethod(
+      leftMarkers.length > 0 || rightMarkers.length > 0 ? 'markers' : 'even'
+    );
+    // Only when the modal opens — don't stomp on the toggle mid-session.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show]);
 
   // ---- Video clip export -------------------------------------------------
   // The clip always covers the whole swing: earliest marker to latest, with a
@@ -110,26 +127,15 @@ export default function ExportModal({
     link.click();
   }, [clip]);
 
-  const getFrameTimes = useCallback((markers, ref) => {
+  const getEvenTimes = useCallback((ref) => {
     const duration = ref?.current?.duration ?? 0;
     if (duration <= 0) return [];
-    if (selectionMethod === 'markers' && markers.length > 0) {
-      return getMarkerFrameTimes(markers, duration, effectiveFrameCount);
-    }
     return getEvenFrameTimes(duration, effectiveFrameCount);
-  }, [selectionMethod, effectiveFrameCount]);
+  }, [effectiveFrameCount]);
 
-  const getLabels = useCallback((markers) => {
+  const getLabels = useCallback(() => {
     if (!showLabels) return [];
-    if (selectionMethod === 'markers' && markers.length > 0) {
-      const sorted = [...markers].sort((a, b) => a.time - b.time);
-      const labels = sorted.slice(0, effectiveFrameCount).map((m) => m.label);
-      // Pad with numbered labels if needed
-      while (labels.length < effectiveFrameCount) {
-        labels.push(`Frame ${labels.length + 1}`);
-      }
-      return labels;
-    }
+    if (markerDriven) return markerColumns.map((c) => c.label);
     // Default labels for even spacing
     if (effectiveFrameCount <= 5) {
       return ['Setup', 'Takeaway', 'Top', 'Impact', 'Finish'].slice(0, effectiveFrameCount);
@@ -138,7 +144,7 @@ export default function ExportModal({
       return ['Address', 'Takeaway', 'Halfway', 'Top', 'Transition', 'Impact', 'Follow-Through', 'Finish'].slice(0, effectiveFrameCount);
     }
     return DEFAULT_MARKER_LABELS.slice(0, effectiveFrameCount);
-  }, [showLabels, selectionMethod, effectiveFrameCount]);
+  }, [showLabels, markerDriven, markerColumns, effectiveFrameCount]);
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
@@ -147,15 +153,21 @@ export default function ExportModal({
 
     try {
       const primaryRef = source === 'right' ? rightRef : leftRef;
-      const primaryMarkers = source === 'right' ? rightMarkers : leftMarkers;
-      const frameTimes = getFrameTimes(primaryMarkers, primaryRef);
+
+      // Marker mode: one column per placed marker, straight from markerColumns.
+      // Even mode: evenly spaced across each video's own duration.
+      const frameTimes = markerDriven
+        ? markerColumns.map((c) => c.primaryTime)
+        : getEvenTimes(primaryRef);
 
       let rightFrameTimes = frameTimes;
       if (source === 'both') {
-        rightFrameTimes = getFrameTimes(rightMarkers, rightRef);
+        rightFrameTimes = markerDriven
+          ? markerColumns.map((c) => c.secondaryTime)
+          : getEvenTimes(rightRef);
       }
 
-      const labels = getLabels(primaryMarkers);
+      const labels = getLabels();
 
       const dataUrl = await generateSwingSequence({
         leftRef: source === 'right' ? rightRef : leftRef,
@@ -167,6 +179,7 @@ export default function ExportModal({
         showLabels,
         showTitle,
         titleText,
+        orientation,
         format,
         onProgress: setProgress,
       });
@@ -178,7 +191,7 @@ export default function ExportModal({
     } finally {
       setGenerating(false);
     }
-  }, [source, leftRef, rightRef, leftMarkers, rightMarkers, getFrameTimes, getLabels, showLabels, showTitle, titleText, format]);
+  }, [source, leftRef, rightRef, markerDriven, markerColumns, getEvenTimes, getLabels, showLabels, showTitle, titleText, orientation, format]);
 
   const handleDownload = useCallback(() => {
     if (!preview) return;
@@ -273,7 +286,9 @@ export default function ExportModal({
               <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Frames</label>
               {markerDriven ? (
                 <div className="mt-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-sm text-gray-300">
-                  {effectiveFrameCount} <span className="text-gray-500">— one per marker set</span>
+                  {effectiveFrameCount} <span className="text-gray-500">
+                    — one per marker ({markerColumns.map((c) => c.label).join(', ')})
+                  </span>
                 </div>
               ) : (
               <div className="mt-2 flex gap-1">
@@ -314,10 +329,39 @@ export default function ExportModal({
                 >
                   From Markers
                   <span className="text-xs text-gray-500 ml-1">
-                    ({(source === 'right' ? rightMarkers : leftMarkers).length} set)
+                    ({markerColumns.length} set)
                   </span>
                 </button>
               </div>
+            </div>
+
+            {/* Layout — vertical stacks the frames P1-at-top, one column per
+                video; horizontal is the classic strip. */}
+            <div>
+              <label className="text-xs text-gray-400 font-medium uppercase tracking-wide">Layout</label>
+              <div className="mt-2 flex gap-1">
+                {[
+                  { value: 'horizontal', label: 'Horizontal' },
+                  { value: 'vertical', label: 'Vertical' },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setOrientation(value)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      orientation === value
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1.5">
+                {orientation === 'vertical'
+                  ? 'First position on top, last at the bottom.'
+                  : 'First position on the left, last on the right.'}
+              </p>
             </div>
 
             {/* Options */}
@@ -538,7 +582,9 @@ export default function ExportModal({
                 <LayoutGrid size={48} className="mx-auto mb-3 opacity-30" />
                 <p className="text-sm">Configure settings and click Generate</p>
                 <p className="text-xs mt-1 text-gray-600">
-                  {source === 'both' ? `${effectiveFrameCount}x2 grid` : `${effectiveFrameCount}x1 strip`}
+                  {orientation === 'vertical'
+                    ? (source === 'both' ? `2x${effectiveFrameCount} stacked grid` : `1x${effectiveFrameCount} vertical strip`)
+                    : (source === 'both' ? `${effectiveFrameCount}x2 grid` : `${effectiveFrameCount}x1 strip`)}
                 </p>
               </div>
             )}

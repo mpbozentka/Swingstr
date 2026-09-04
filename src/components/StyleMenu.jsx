@@ -10,9 +10,9 @@ const STROKE_COLORS = [
   '#ffffff',
 ];
 
-export default function StyleMenu({ color, setColor, lineWidth, setLineWidth }) {
+export default function StyleMenu({ color, setColor, lineWidth, setLineWidth, positionClass = 'absolute bottom-16 left-32' }) {
   return (
-    <div className="absolute bottom-16 left-32 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4 w-64 z-50">
+    <div className={`${positionClass} bg-gray-900/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-4 w-64 z-50`}>
       <div className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">
         Stroke Color
       </div>

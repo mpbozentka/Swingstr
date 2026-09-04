@@ -2,9 +2,9 @@ import React from 'react';
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0];
 
-export default function SpeedMenu({ speed, changeSpeed, onClose }) {
+export default function SpeedMenu({ speed, changeSpeed, onClose, positionClass = 'absolute bottom-16 right-40' }) {
   return (
-    <div className="absolute bottom-16 right-40 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 w-32 z-50">
+    <div className={`${positionClass} bg-gray-900/70 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 p-2 flex flex-col gap-1 w-32 z-50`}>
       <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">
         Playback Speed
       </div>

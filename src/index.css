@@ -8,9 +8,11 @@ body {
   color: white;
 }
 
-/* Keep footer tools above mobile browser UI (address bar, nav) */
+/* Lift the floating control bar above mobile browser UI (address bar, nav).
+   It's an absolutely-positioned element, so this shifts it up rather than
+   padding it out into a taller panel. */
 @media (max-width: 768px) {
   .footer-mobile-safe {
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 80px) !important;
+    margin-bottom: max(env(safe-area-inset-bottom, 0px), 64px) !important;
   }
 }

@@ -1,10 +1,7 @@
 import React from 'react';
 import {
-  Download,
   Play,
   Pause,
-  Trash2,
-  MousePointer2,
   ChevronRight,
   ChevronLeft,
   ZoomIn,
@@ -13,27 +10,15 @@ import {
   Link as LinkIcon,
   Link2Off,
   Maximize,
-  Camera,
   Users,
-  Save,
-  Palette,
-  PenTool,
-  Gauge,
   Crosshair,
   Check,
-  X,
-  LayoutGrid,
-  Scissors,
-  PersonStanding,
-  Loader2,
 } from 'lucide-react';
-import { Button, IconButton, MenuButton } from './ui/Button';
+import { Button } from './ui/Button';
 import ScreenPane from './ScreenPane';
-import ToolMenu from './ToolMenu';
-import StyleMenu from './StyleMenu';
-import SpeedMenu from './SpeedMenu';
+import LeftRail from './LeftRail';
 import SaveModal from './SaveModal';
-import MarkerBar from './MarkerBar';
+import Timeline from './Timeline';
 import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
@@ -70,13 +55,13 @@ export default function AnalyzerView({
   togglePlay,
   seek,
   clearShapes,
-  onSnapshot,
   openSaveModal,
   globalTime,
   globalDuration,
   onGlobalScrub,
   onGraphSeek,
   onTimeUpdate,
+  onPlayStateChange,
   onLinkedScrub,
   showSequenceModal,
   setShowSequenceModal,
@@ -102,7 +87,6 @@ export default function AnalyzerView({
   syncOffset = 0,
   onSetSyncPoint,
   onClearSyncPoint,
-  activeMarkers,
   onSetMarker,
   onRemoveMarker,
   onJumpToMarker,
@@ -158,24 +142,6 @@ export default function AnalyzerView({
         syncOffset={syncOffset}
         playbackSpeed={speed}
       />
-
-      <div onClick={(e) => e.stopPropagation()}>
-        {activeMenu === 'tools' && (
-          <ToolMenu
-            tool={tool}
-            setTool={setTool}
-            onClose={() => setActiveMenu(null)}
-          />
-        )}
-        {activeMenu === 'style' && <StyleMenu color={color} setColor={setColor} lineWidth={lineWidth} setLineWidth={setLineWidth} />}
-        {activeMenu === 'speed' && (
-          <SpeedMenu
-            speed={speed}
-            changeSpeed={changeSpeed}
-            onClose={() => setActiveMenu(null)}
-          />
-        )}
-      </div>
 
       <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-4">
@@ -288,6 +254,9 @@ export default function AnalyzerView({
         </div>
       </header>
 
+      {/* Everything below the header. The video fills the region; the tool
+          rail and the transport bar float on glass over it. */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
       <main className="flex-1 flex overflow-hidden bg-black relative">
         <ScreenPane
           side="left"
@@ -309,6 +278,7 @@ export default function AnalyzerView({
           isSynced={sync}
           onScrub={onLinkedScrub}
           onTimeUpdate={onTimeUpdate}
+          onPlayStateChange={onPlayStateChange}
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
           poseFrames={poseState.left.frames}
@@ -339,6 +309,7 @@ export default function AnalyzerView({
             isSynced={sync}
             onScrub={onLinkedScrub}
             onTimeUpdate={onTimeUpdate}
+          onPlayStateChange={onPlayStateChange}
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
             poseFrames={poseState.right.frames}
@@ -347,6 +318,91 @@ export default function AnalyzerView({
             handedness={handedness.right}
           />
         )}
+        <LeftRail
+          tool={tool}
+          setTool={setTool}
+          color={color}
+          setColor={setColor}
+          lineWidth={lineWidth}
+          setLineWidth={setLineWidth}
+          speed={speed}
+          changeSpeed={changeSpeed}
+          activeMenu={activeMenu}
+          setActiveMenu={setActiveMenu}
+          clearShapes={clearShapes}
+          activeTrim={activeTrim}
+          onSetTrim={onSetTrim}
+          onClearTrim={onClearTrim}
+          activePose={activePose}
+          poseBusy={poseBusy}
+          onAnalyze={onAnalyze}
+          onCancelAnalysis={onCancelAnalysis}
+          onToggleSkeleton={onToggleSkeleton}
+          activeViewType={activeViewType}
+          activeHandedness={activeHandedness}
+          onSetViewType={onSetViewType}
+          onToggleHandedness={onToggleHandedness}
+          onExport={() => setShowSequenceModal(true)}
+          onSave={openSaveModal}
+        />
+
+        {/* Scrubber and transport, floating on glass over the footage. Left
+            inset clears the tool rail. */}
+        <div
+          className="footer-mobile-safe absolute bottom-4 left-20 right-4 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Timeline
+            globalTime={globalTime}
+            globalDuration={globalDuration}
+            onScrub={onGlobalScrub}
+            activeTrim={activeTrim}
+            syncPoints={syncPoints}
+            markers={markers}
+            activeScreen={activeScreen}
+            sync={sync}
+            hasSyncOffset={hasSyncOffset}
+            syncOffset={syncOffset}
+            hasBothVideos={layout === 'split' && !!leftVideo && !!rightVideo}
+            onJumpTo={onJumpToMarker}
+            onSetMarker={onSetMarker}
+            onRemoveMarker={onRemoveMarker}
+            onPrev={onPrevMarker}
+            onNext={onNextMarker}
+          />
+
+          <div className="flex items-center justify-center gap-5 pb-1">
+            <button
+              onClick={() => seek(-0.05)}
+              aria-label="Previous frame"
+              title="Previous frame (←)"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-gray-200 hover:bg-white/15 hover:text-white transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              aria-pressed={isPlaying}
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+              className="w-10 h-10 rounded-full flex items-center justify-center bg-purple-500/80 backdrop-blur border border-purple-300/40 text-white hover:bg-purple-500 shadow-lg shadow-purple-900/40 active:scale-95 transition-all"
+            >
+              {isPlaying ? (
+                <Pause size={20} fill="currentColor" />
+              ) : (
+                <Play size={20} fill="currentColor" className="ml-0.5" />
+              )}
+            </button>
+            <button
+              onClick={() => seek(0.05)}
+              aria-label="Next frame"
+              title="Next frame (→)"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-gray-200 hover:bg-white/15 hover:text-white transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
       </main>
 
       {/* Angle-over-time graph (plan section 7) — renders nothing until a
@@ -363,290 +419,7 @@ export default function AnalyzerView({
         markers={markers}
         layout={layout}
       />
-
-      <footer className="footer-mobile-safe bg-gray-800 border-t border-gray-700 flex flex-col shrink-0 z-30">
-        <div className="w-full px-4 py-0 flex items-center gap-3 border-b border-gray-700 bg-gray-800">
-          <span className="text-xs font-mono text-gray-400 w-12 text-right">
-            {globalTime.toFixed(1)}s
-          </span>
-          <div className="flex-1 relative">
-            <input
-              type="range"
-              min="0"
-              max={globalDuration || 100}
-              step="0.01"
-              value={globalTime}
-              onChange={onGlobalScrub}
-              aria-label="Video timeline"
-              className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-purple-500 hover:accent-purple-400"
-            />
-            {/* Trimmed-out regions shaded on the timeline */}
-            {globalDuration > 0 && activeTrim.start != null && (
-              <div
-                className="absolute top-0 bottom-0 left-0 bg-black/60 border-r-2 border-emerald-400/80 rounded-l-lg z-10 pointer-events-none"
-                style={{ width: `${(activeTrim.start / globalDuration) * 100}%` }}
-                title={`Trim start: ${activeTrim.start.toFixed(2)}s`}
-              />
-            )}
-            {globalDuration > 0 && activeTrim.end != null && (
-              <div
-                className="absolute top-0 bottom-0 right-0 bg-black/60 border-l-2 border-emerald-400/80 rounded-r-lg z-10 pointer-events-none"
-                style={{ width: `${(Math.max(0, globalDuration - activeTrim.end) / globalDuration) * 100}%` }}
-                title={`Trim end: ${activeTrim.end.toFixed(2)}s`}
-              />
-            )}
-            {/* Sync point indicators on timeline */}
-            {globalDuration > 0 && syncPoints.left != null && (
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-amber-400/70 z-20 pointer-events-none"
-                style={{ left: `${(syncPoints.left / globalDuration) * 100}%` }}
-                title={`L sync: ${syncPoints.left.toFixed(2)}s`}
-              >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-r-[3px] border-t-[4px] border-l-transparent border-r-transparent border-t-amber-400" />
-              </div>
-            )}
-            {globalDuration > 0 && syncPoints.right != null && (
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-amber-500/70 z-20 pointer-events-none"
-                style={{ left: `${(syncPoints.right / globalDuration) * 100}%` }}
-                title={`R sync: ${syncPoints.right.toFixed(2)}s`}
-              >
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[3px] border-r-[3px] border-b-[4px] border-l-transparent border-r-transparent border-b-amber-500" />
-              </div>
-            )}
-            {/* Marker diamonds on timeline */}
-            {globalDuration > 0 && activeMarkers.map((m) => (
-              <button
-                key={m.index}
-                onClick={() => onJumpToMarker(m.index)}
-                className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rotate-45 bg-purple-400 border border-purple-300 hover:bg-purple-300 hover:scale-125 transition-all z-10 pointer-events-auto"
-                style={{ left: `${(m.time / globalDuration) * 100}%`, transform: 'translateX(-50%) translateY(-50%) rotate(45deg)' }}
-                title={`${m.label} (${m.time.toFixed(2)}s)`}
-              />
-            ))}
-          </div>
-          <span className="text-xs font-mono text-gray-400 w-12">
-            {globalDuration.toFixed(1)}s
-          </span>
-          {/* Trim controls — apply to the active screen's video */}
-          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => onSetTrim('start')}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                activeTrim.start != null
-                  ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-600/50'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600'
-              }`}
-              title={activeTrim.start != null ? `Trim start: ${activeTrim.start.toFixed(2)}s — click to move to current frame` : 'Set trim start at current frame'}
-            >
-              <Scissors size={12} />
-              In
-              {activeTrim.start != null ? <Check size={10} /> : null}
-            </button>
-            <button
-              onClick={() => onSetTrim('end')}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                activeTrim.end != null
-                  ? 'bg-emerald-600/30 text-emerald-400 border border-emerald-600/50'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600'
-              }`}
-              title={activeTrim.end != null ? `Trim end: ${activeTrim.end.toFixed(2)}s — click to move to current frame` : 'Set trim end at current frame'}
-            >
-              Out
-              {activeTrim.end != null ? <Check size={10} /> : null}
-            </button>
-            {(activeTrim.start != null || activeTrim.end != null) && (
-              <button
-                onClick={onClearTrim}
-                className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-red-900/30"
-                title="Clear trim"
-                aria-label="Clear trim"
-              >
-                <X size={12} />
-              </button>
-            )}
-            <div className="w-px h-4 bg-gray-600 mx-1" />
-            {/* Pose skeleton overlay — analyze the active screen's video,
-                then toggle the overlay on/off once done. */}
-            {activePose.status === 'analyzing' ? (
-              <div className="flex items-center gap-1">
-                <span className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-sky-600/20 text-sky-400 border border-sky-600/40">
-                  <Loader2 size={12} className="animate-spin" />
-                  {Math.round(activePose.progress * 100)}%
-                </span>
-                <button
-                  onClick={onCancelAnalysis}
-                  className="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-red-900/30"
-                  title="Cancel analysis"
-                  aria-label="Cancel analysis"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={activePose.status === 'done' ? onToggleSkeleton : onAnalyze}
-                disabled={poseBusy}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors border disabled:opacity-40 disabled:cursor-not-allowed ${
-                  activePose.status === 'done' && activePose.showSkeleton
-                    ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
-                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
-                }`}
-                title={
-                  activePose.status === 'done'
-                    ? (activePose.showSkeleton ? 'Hide skeleton overlay' : 'Show skeleton overlay')
-                    : 'Analyze swing (pose skeleton)'
-                }
-              >
-                <PersonStanding size={12} />
-                {activePose.status === 'done' ? 'Skeleton' : 'Analyze'}
-                {activePose.status === 'done' && activePose.showSkeleton ? <Check size={10} /> : null}
-              </button>
-            )}
-            <div className="w-px h-4 bg-gray-600 mx-1" />
-            {/* View tagging (plan 6.1) — user picks the camera angle per
-                pane, no auto-detection; angle readouts key off this. */}
-            <button
-              onClick={() => onSetViewType('dtl')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${
-                activeViewType === 'dtl'
-                  ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
-              }`}
-              title="Tag this pane as down-the-line view"
-            >
-              DTL
-            </button>
-            <button
-              onClick={() => onSetViewType('face-on')}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors border ${
-                activeViewType === 'face-on'
-                  ? 'bg-sky-600/30 text-sky-400 border-sky-600/50'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600 border-gray-600'
-              }`}
-              title="Tag this pane as face-on view"
-            >
-              FO
-            </button>
-            {activeViewType === 'face-on' && (
-              <button
-                onClick={onToggleHandedness}
-                className="px-2 py-1 rounded text-xs font-medium bg-gray-700 text-gray-400 hover:bg-gray-600 border border-gray-600"
-                title="Golfer handedness — sets which arm is 'lead' for the lead-arm angle"
-              >
-                {activeHandedness}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <MarkerBar
-          markers={activeMarkers}
-          duration={globalDuration}
-          currentTime={globalTime}
-          onJumpTo={onJumpToMarker}
-          onSetMarker={onSetMarker}
-          onRemoveMarker={onRemoveMarker}
-          onPrev={onPrevMarker}
-          onNext={onNextMarker}
-        />
-
-        <div className="flex items-center justify-between px-4 h-9">
-          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <IconButton
-              onClick={() => setTool('move')}
-              active={tool === 'move'}
-              title="Move/Pan"
-            >
-              <MousePointer2 size={20} />
-            </IconButton>
-            <div className="w-px h-6 bg-gray-700 mx-1" />
-
-            <MenuButton
-              icon={PenTool}
-              label="Drawing"
-              active={['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'].includes(tool)}
-              isOpen={activeMenu === 'tools'}
-              onClick={() => setActiveMenu(activeMenu === 'tools' ? null : 'tools')}
-            />
-
-            <MenuButton
-              icon={Palette}
-              label="Style"
-              active={false}
-              isOpen={activeMenu === 'style'}
-              onClick={() => setActiveMenu(activeMenu === 'style' ? null : 'style')}
-            />
-
-            <div className="w-px h-6 bg-gray-700 mx-1" />
-            <IconButton
-              onClick={clearShapes}
-              title="Clear All"
-              className="text-red-400 hover:bg-red-900/30"
-            >
-              <Trash2 size={20} />
-            </IconButton>
-          </div>
-
-          <div className="flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
-            <button
-              onClick={() => seek(-0.05)}
-              aria-label="Previous frame"
-              title="Previous frame (←)"
-              className="text-gray-400 hover:text-white"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <button
-              onClick={togglePlay}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-              aria-pressed={isPlaying}
-              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-              className="bg-purple-600 text-white p-1.5 rounded-full hover:bg-purple-500 shadow-lg active:scale-95"
-            >
-              {isPlaying ? (
-                <Pause size={20} fill="currentColor" />
-              ) : (
-                <Play size={20} fill="currentColor" className="ml-1" />
-              )}
-            </button>
-            <button
-              onClick={() => seek(0.05)}
-              aria-label="Next frame"
-              title="Next frame (→)"
-              className="text-gray-400 hover:text-white"
-            >
-              <ChevronRight size={24} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <MenuButton
-              icon={Gauge}
-              label={`${speed}x`}
-              active={false}
-              isOpen={activeMenu === 'speed'}
-              onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')}
-            />
-            <IconButton onClick={onSnapshot} title="Snapshot">
-              <Camera size={20} />
-            </IconButton>
-            <IconButton
-              onClick={() => setShowSequenceModal(true)}
-              title="Export (sequence or video)"
-            >
-              <Download size={20} />
-            </IconButton>
-            <IconButton
-              onClick={openSaveModal}
-              title="Save to Student"
-              className="text-purple-400 hover:text-purple-200"
-            >
-              <Save size={20} />
-            </IconButton>
-          </div>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }

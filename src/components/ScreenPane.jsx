@@ -16,7 +16,7 @@ const ScreenPane = forwardRef(function ScreenPane(
     <div className={`h-full relative flex flex-col ${widthClass} ${z} ${containerClassName}`}>
       {active && (
         <div
-          className="absolute top-4 left-4 bg-purple-600 text-xs font-bold px-2 py-1 rounded z-20 pointer-events-none"
+          className="absolute top-3 right-3 bg-purple-600/80 backdrop-blur border border-purple-300/30 text-xs font-bold px-2 py-1 rounded-lg z-20 pointer-events-none"
           aria-hidden="true"
         >
           ACTIVE

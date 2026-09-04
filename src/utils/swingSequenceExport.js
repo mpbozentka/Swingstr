@@ -13,6 +13,7 @@ import { renderShape } from './shapeRenderer';
  * @param {boolean} options.showLabels - Whether to render labels
  * @param {boolean} options.showTitle - Whether to render title bar
  * @param {string} options.titleText - Title text
+ * @param {string} options.orientation - 'horizontal' (frames across) or 'vertical' (frames stacked)
  * @param {string} options.format - 'jpeg' or 'png'
  * @param {function} options.onProgress - Progress callback (0-1)
  * @returns {Promise<string>} Data URL of the generated image
@@ -27,6 +28,7 @@ export async function generateSwingSequence({
   showLabels,
   showTitle,
   titleText,
+  orientation = 'horizontal',
   format = 'jpeg',
   onProgress,
 }) {
@@ -46,7 +48,10 @@ export async function generateSwingSequence({
     timeArrays.push(rightFrameTimes || frameTimes);
   }
 
-  const numFrames = frameTimes.length;
+  // Columns are driven by the caller's frame list. A row may have a null time
+  // where that video has no marker for the column (comparison mode, one swing
+  // missing a position) — that cell renders as an empty placeholder.
+  const numFrames = Math.max(...timeArrays.map((t) => t?.length ?? 0), 0);
   const rows = refs.length;
   const totalCaptures = numFrames * rows;
   let captured = 0;
@@ -62,7 +67,8 @@ export async function generateSwingSequence({
     const originalTime = ref.current?.currentTime ?? 0;
 
     for (let i = 0; i < numFrames; i++) {
-      const result = await ref.current?.captureFrameAtTime(times[i]);
+      const time = times?.[i];
+      const result = time == null ? null : await ref.current?.captureFrameAtTime(time);
       rowFrames.push(result);
       captured++;
       onProgress?.(captured / totalCaptures);
@@ -73,26 +79,33 @@ export async function generateSwingSequence({
     capturedRows.push(rowFrames);
   }
 
-  // Determine frame dimensions from first captured frame
-  const firstFrame = capturedRows[0]?.find((f) => f?.canvas);
+  // Determine frame dimensions from the first frame that captured anywhere in
+  // the grid — row 0 may lead with an empty cell.
+  const firstFrame = capturedRows.flat().find((f) => f?.canvas);
   if (!firstFrame) throw new Error('No frames could be captured');
 
   const frameW = firstFrame.canvas.width;
   const frameH = firstFrame.canvas.height;
 
-  // Grid layout
+  // Grid layout. Horizontal runs frames across and videos down; vertical is
+  // the transpose — frames stacked P1-at-top, one column per video.
+  const vertical = orientation === 'vertical';
   const gap = 4;
   const labelHeight = showLabels ? 32 : 0;
   const titleHeight = showTitle ? 48 : 0;
   const cellW = frameW;
   const cellH = frameH + labelHeight;
 
-  const gridW = numFrames * cellW + (numFrames - 1) * gap;
-  const gridH = titleHeight + rows * cellH + (rows - 1) * gap;
+  const gridCols = vertical ? rows : numFrames;
+  const gridRows = vertical ? numFrames : rows;
 
-  // Scale down if too large (max 8000px wide)
-  const maxWidth = 8000;
-  const scale = gridW > maxWidth ? maxWidth / gridW : 1;
+  const gridW = gridCols * cellW + (gridCols - 1) * gap;
+  const gridH = titleHeight + gridRows * cellH + (gridRows - 1) * gap;
+
+  // Cap both dimensions — a 10-frame vertical strip busts the height budget
+  // long before it comes near the width one.
+  const MAX_PX = 8000;
+  const scale = Math.min(1, MAX_PX / gridW, MAX_PX / gridH);
 
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = Math.round(gridW * scale);
@@ -128,9 +141,9 @@ export async function generateSwingSequence({
   // Draw frames
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < numFrames; col++) {
-      const frame = capturedRows[row][col];
-      const x = col * (cellW + gap);
-      const y = titleHeight + row * (cellH + gap);
+      const frame = capturedRows[row]?.[col];
+      const x = (vertical ? row : col) * (cellW + gap);
+      const y = titleHeight + (vertical ? col : row) * (cellH + gap);
 
       if (frame?.canvas) {
         ctx.drawImage(frame.canvas, x, y, cellW, frameH);
@@ -161,7 +174,7 @@ export async function generateSwingSequence({
         ctx.font = `${Math.round(14)}px system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('No frame', x + cellW / 2, y + frameH / 2);
+        ctx.fillText('Not marked', x + cellW / 2, y + frameH / 2);
         ctx.textAlign = 'start';
       }
 
@@ -187,8 +200,9 @@ export async function generateSwingSequence({
     ctx.textBaseline = 'top';
     const pad = 8;
     ['LEFT', 'RIGHT'].forEach((label, i) => {
-      const y = titleHeight + i * (cellH + gap) + pad;
-      ctx.fillText(label, pad, y);
+      const x = vertical ? i * (cellW + gap) + pad : pad;
+      const y = vertical ? titleHeight + pad : titleHeight + i * (cellH + gap) + pad;
+      ctx.fillText(label, x, y);
     });
     ctx.restore();
   }
@@ -217,20 +231,37 @@ export function getEvenFrameTimes(duration, count) {
 }
 
 /**
- * Gets frame times from markers, sorted by time.
- * Falls back to even spacing for missing frames.
+ * One column per marker the user actually placed — one marker gives one frame,
+ * ten give ten. Single video: columns run in time order. Comparison: columns are
+ * the union of P-slots either video has, sorted by slot, so P3 sits above P3 and
+ * a swing missing that position gets an empty cell instead of a shifted grid.
+ *
+ * @returns {{index:number,label:string,primaryTime:number|null,secondaryTime:number|null}[]}
  */
-export function getMarkerFrameTimes(markers, duration, count) {
-  const sorted = [...markers].sort((a, b) => a.time - b.time).map((m) => m.time);
-  if (sorted.length >= count) return sorted.slice(0, count);
-  // Fill remaining with even spacing
-  const even = getEvenFrameTimes(duration, count);
-  const merged = [...sorted];
-  for (const t of even) {
-    if (merged.length >= count) break;
-    if (!merged.some((m) => Math.abs(m - t) < 0.05)) {
-      merged.push(t);
-    }
+export function getMarkerColumns({ primaryMarkers = [], secondaryMarkers = null, labelFor }) {
+  if (!secondaryMarkers) {
+    return [...primaryMarkers]
+      .sort((a, b) => a.time - b.time)
+      .map((m) => ({
+        index: m.index,
+        label: m.label ?? labelFor?.(m.index) ?? `P${m.index + 1}`,
+        primaryTime: m.time,
+        secondaryTime: null,
+      }));
   }
-  return merged.sort((a, b) => a - b).slice(0, count);
+
+  const indices = [...new Set(
+    [...primaryMarkers, ...secondaryMarkers].map((m) => m.index)
+  )].sort((a, b) => a - b);
+
+  return indices.map((index) => {
+    const primary = primaryMarkers.find((m) => m.index === index);
+    const secondary = secondaryMarkers.find((m) => m.index === index);
+    return {
+      index,
+      label: primary?.label ?? secondary?.label ?? labelFor?.(index) ?? `P${index + 1}`,
+      primaryTime: primary?.time ?? null,
+      secondaryTime: secondary?.time ?? null,
+    };
+  });
 }

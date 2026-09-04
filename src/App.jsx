@@ -28,11 +28,10 @@ export default function Swingstr() {
 
   const [globalTime, setGlobalTime] = useState(0);
   const [globalDuration, setGlobalDuration] = useState(0);
-  // Stable getter for the rAF-driven marker jump helpers; reading from this
-  // ref avoids re-creating the hook callbacks on every globalTime change.
+  // Reading the playhead from this ref instead of `globalTime` keeps the
+  // marker-step callback from being rebuilt on every timeupdate.
   const globalTimeRef = useRef(0);
   useEffect(() => { globalTimeRef.current = globalTime; }, [globalTime]);
-  const getGlobalTime = useCallback(() => globalTimeRef.current, []);
 
   const [students, setStudents] = useState(() => loadStudents());
   const [saveData, setSaveData] = useState({ studentId: '', label: '' });
@@ -100,9 +99,9 @@ export default function Swingstr() {
     setUrlPromptSide(side);
   }, []);
 
-  const handleUrlSubmit = useCallback((raw) => {
+  const handleUrlSubmit = useCallback(async (raw) => {
     if (!urlPromptSide) return null;
-    const result = setUrlSource(urlPromptSide, raw);
+    const result = await setUrlSource(urlPromptSide, raw);
     if (!result) setUrlPromptSide(null);
     return result;
   }, [urlPromptSide, setUrlSource]);
@@ -111,9 +110,15 @@ export default function Swingstr() {
     markers,
     setMarker: handleSetMarker,
     removeMarker: handleRemoveMarker,
-    jumpTo: jumpToMarker,
-    jumpRelative: jumpRelativeMarker,
-  } = useMarkers({ leftRef, rightRef, getGlobalTime, setGlobalTime });
+    clearSide: clearMarkers,
+  } = useMarkers();
+
+  // P-markers are timestamps into one particular swing. Loading a new video
+  // into a side clears that side's markers; the other side keeps its own, so
+  // left and right can hold different swings each with their own positions.
+  // Same replace-in-place pattern as the pose cache above.
+  useEffect(() => { clearMarkers('left'); }, [leftVideo, clearMarkers]);
+  useEffect(() => { clearMarkers('right'); }, [rightVideo, clearMarkers]);
 
   // Debounced — every keystroke in a student's notes textarea would otherwise
   // serialize the whole CRM (#21).
@@ -174,6 +179,47 @@ export default function Swingstr() {
     const otherTime = Math.min(Math.max(0, raw), otherDuration > 0 ? otherDuration : raw);
     handleSetMarker(otherSide, index, otherTime);
   }, [sync, syncOffset, handleSetMarker]);
+
+  // Moving to a checkpoint moves BOTH swings when the screens are linked. The
+  // other video goes to its own marker of the same P-number where it has one —
+  // that's what makes P3 land on P3 even when the two swings are paced
+  // differently — and falls back to the sync offset when it doesn't.
+  const mirrorSeekToMarker = useCallback((fromSide, index, time) => {
+    if (!sync) return;
+    const otherSide = fromSide === 'left' ? 'right' : 'left';
+    const otherRef = otherSide === 'left' ? leftRef : rightRef;
+    if (!otherRef.current?.hasVideo) return;
+    const own = markers[otherSide].find((m) => m.index === index);
+    const raw = own
+      ? own.time
+      : (fromSide === 'left' ? time - syncOffset : time + syncOffset);
+    otherRef.current.seekTo(Math.max(0, raw));
+  }, [sync, syncOffset, markers]);
+
+  const goToMarker = useCallback((index) => {
+    const m = markers[activeScreen].find((mm) => mm.index === index);
+    if (!m) return;
+    const ref = activeScreen === 'left' ? leftRef : rightRef;
+    ref.current?.seekTo(m.time);
+    setGlobalTime(m.time);
+    mirrorSeekToMarker(activeScreen, index, m.time);
+  }, [markers, activeScreen, mirrorSeekToMarker]);
+
+  // Step to the neighbouring checkpoint in `direction`. The 0.05s dead zone
+  // keeps a marker we're already parked on from counting as "the next one".
+  const stepMarker = useCallback((direction) => {
+    const now = globalTimeRef.current;
+    const list = markers[activeScreen];
+    const candidates = direction > 0
+      ? list.filter((m) => m.time > now + 0.05).sort((a, b) => a.time - b.time)
+      : list.filter((m) => m.time < now - 0.05).sort((a, b) => b.time - a.time);
+    const next = candidates[0];
+    if (!next) return;
+    const ref = activeScreen === 'left' ? leftRef : rightRef;
+    ref.current?.seekTo(next.time);
+    setGlobalTime(next.time);
+    mirrorSeekToMarker(activeScreen, next.index, next.time);
+  }, [markers, activeScreen, mirrorSeekToMarker]);
 
   // Drift correction loop (#6): different decode timings would let the two
   // videos visibly slip apart over a few seconds of synced playback. While
@@ -256,21 +302,17 @@ export default function Swingstr() {
     target.current?.clearShapes();
   }, [activeScreen]);
 
-  const handleSnapshot = useCallback(async () => {
-    const target = activeScreen === 'left' ? leftRef : rightRef;
-    if (!target.current) return;
-    const dataUrl = await target.current.getSnapshot();
-    if (dataUrl) {
-      const link = document.createElement('a');
-      link.download = `swingstr-${Date.now()}.jpg`;
-      link.href = dataUrl;
-      link.click();
-    }
-  }, [activeScreen]);
-
   const handleTimeUpdate = useCallback((time, dur) => {
     setGlobalTime(time);
     setGlobalDuration(dur);
+  }, []);
+
+  // Keep isPlaying honest: the active video reports every play/pause, whoever
+  // caused it. Without this, drawing on a playing video left the app thinking
+  // it was still playing, so the next spacebar press "paused" an already-paused
+  // video and appeared to do nothing.
+  const handlePlayStateChange = useCallback((playing) => {
+    setIsPlaying(playing);
   }, []);
 
   const handleLinkedScrub = useCallback((time) => {
@@ -322,10 +364,13 @@ export default function Swingstr() {
 
     if (targetFile) {
       try {
-        await saveVideoBlob(videoId, targetFile);
+        // The student's name and the clip label shape the on-disk path in the
+        // desktop app, so the file is findable in Finder without the app.
+        const studentName = students.find((s) => s.id === saveData.studentId)?.name;
+        await saveVideoBlob(videoId, targetFile, { studentName, label: saveData.label });
       } catch (err) {
         console.warn('[saveToStudent] IndexedDB write failed', err);
-        setToast({ message: "Couldn't save locally — browser may be in private mode or out of space.", kind: 'error' });
+        setToast({ message: "Couldn't save the video.", kind: 'error' });
         return;
       }
     }
@@ -340,7 +385,7 @@ export default function Swingstr() {
     setShowSaveModal(false);
     setSaveData({ studentId: '', label: '' });
     setToast({ message: 'Saved to student library.', kind: 'success' });
-  }, [saveData, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
+  }, [saveData, students, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 
   // Tracks whether P is currently physically held — no native modifier flag
   // exists for letter keys, so this is tracked by hand. Reset on keyup AND
@@ -380,11 +425,19 @@ export default function Swingstr() {
           // repeat-fire would blow past several markers while the combo is held.
           if (e.repeat) return;
           e.preventDefault();
-          jumpRelativeMarker(activeScreen, dir);
+          stepMarker(dir);
           return;
         }
         e.preventDefault();
         seek(dir * 0.05);
+        return;
+      }
+      // , . < > step checkpoints too, with or without P held — the shifted
+      // pair is what the keycaps actually read, and nothing else uses them.
+      if (e.key === ',' || e.key === '<' || e.key === '.' || e.key === '>') {
+        if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+        e.preventDefault();
+        stepMarker(e.key === '.' || e.key === '>' ? 1 : -1);
         return;
       }
       if (e.key === ' ') {
@@ -404,12 +457,12 @@ export default function Swingstr() {
       } else if (digitMatch && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
         const keyIndex = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
         e.preventDefault();
-        jumpToMarker(activeScreen, keyIndex);
+        goToMarker(keyIndex);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay, setMarkerLinked, jumpToMarker, jumpRelativeMarker, activeScreen, globalTime]);
+  }, [seek, togglePlay, setMarkerLinked, goToMarker, stepMarker, activeScreen, globalTime]);
 
   const toastEl = (
     <Toast
@@ -471,13 +524,13 @@ export default function Swingstr() {
       togglePlay={togglePlay}
       seek={seek}
       clearShapes={clearShapes}
-      onSnapshot={handleSnapshot}
       openSaveModal={() => setShowSaveModal(true)}
       globalTime={globalTime}
       globalDuration={globalDuration}
       onGlobalScrub={handleGlobalScrub}
       onGraphSeek={scrubTo}
       onTimeUpdate={handleTimeUpdate}
+      onPlayStateChange={handlePlayStateChange}
       onLinkedScrub={handleLinkedScrub}
       showSequenceModal={showSequenceModal}
       setShowSequenceModal={setShowSequenceModal}
@@ -503,12 +556,11 @@ export default function Swingstr() {
       syncOffset={syncOffset}
       onSetSyncPoint={handleSetSyncPoint}
       onClearSyncPoint={handleClearSyncPoint}
-      activeMarkers={markers[activeScreen]}
       onSetMarker={(index, time) => setMarkerLinked(activeScreen, index, time)}
       onRemoveMarker={(index) => handleRemoveMarker(activeScreen, index)}
-      onJumpToMarker={(index) => jumpToMarker(activeScreen, index)}
-      onPrevMarker={() => jumpRelativeMarker(activeScreen, -1)}
-      onNextMarker={() => jumpRelativeMarker(activeScreen, +1)}
+      onJumpToMarker={goToMarker}
+      onPrevMarker={() => stepMarker(-1)}
+      onNextMarker={() => stepMarker(+1)}
       students={students}
       showSaveModal={showSaveModal}
       setShowSaveModal={setShowSaveModal}

@@ -7,11 +7,12 @@ const newId = () =>
     : `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
 /**
- * Per-side marker state plus jump helpers. Keeps the marker-mutation logic
- * out of App so it can grow (e.g. drag-to-reorder, custom labels) without
- * dragging the main component along with it.
+ * Per-side marker state. Keeps the marker-mutation logic out of App so it can
+ * grow (e.g. drag-to-reorder, custom labels) without dragging the main
+ * component along with it. Navigation lives in App, which is the only place
+ * that knows about sync/active-screen and can move both videos at once.
  */
-export function useMarkers({ leftRef, rightRef, getGlobalTime, setGlobalTime }) {
+export function useMarkers() {
   const [markers, setMarkers] = useState({ left: [], right: [] });
 
   const setMarker = useCallback((side, index, time) => {
@@ -37,30 +38,13 @@ export function useMarkers({ leftRef, rightRef, getGlobalTime, setGlobalTime }) 
     }));
   }, []);
 
-  const seekSide = useCallback((side, time) => {
-    const ref = side === 'left' ? leftRef : rightRef;
-    ref.current?.seekTo(time);
-    setGlobalTime(time);
-  }, [leftRef, rightRef, setGlobalTime]);
+  // Markers point at moments in one specific video. When that side gets a new
+  // video they describe nothing, so they're dropped — but only for that side.
+  // Returning `prev` unchanged when the side is already empty avoids a pointless
+  // re-render on every mount.
+  const clearSide = useCallback((side) => {
+    setMarkers((prev) => (prev[side].length === 0 ? prev : { ...prev, [side]: [] }));
+  }, []);
 
-  const jumpTo = useCallback((side, index) => {
-    setMarkers((prev) => {
-      const m = prev[side].find((mm) => mm.index === index);
-      if (m) seekSide(side, m.time);
-      return prev;
-    });
-  }, [seekSide]);
-
-  const jumpRelative = useCallback((side, direction) => {
-    const currentTime = getGlobalTime();
-    setMarkers((prev) => {
-      const candidates = direction > 0
-        ? prev[side].filter((m) => m.time > currentTime + 0.05).sort((a, b) => a.time - b.time)
-        : prev[side].filter((m) => m.time < currentTime - 0.05).sort((a, b) => b.time - a.time);
-      if (candidates[0]) seekSide(side, candidates[0].time);
-      return prev;
-    });
-  }, [getGlobalTime, seekSide]);
-
-  return { markers, setMarker, removeMarker, jumpTo, jumpRelative };
+  return { markers, setMarker, removeMarker, clearSide };
 }

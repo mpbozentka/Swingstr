@@ -1,13 +1,31 @@
 /**
  * Persistence layer for Swingstr.
  *
- * Two stores:
+ * Browser:
  *   - localStorage: small, structured metadata (students, video records).
  *     Versioned so we can migrate the shape over time without crashing on load.
  *   - IndexedDB:    raw video Blobs. Blob URLs are tied to document lifetime,
  *     so a URL stored in localStorage is a dead pointer after refresh. We keep
  *     the actual Blob in IDB and reconstruct an object URL on demand.
+ *
+ * Desktop app:
+ *   - ~/Documents/Swingstr Library/students.json
+ *   - ~/Documents/Swingstr Library/videos/<Student Name>/<label>__<id>.mp4
  */
+
+function desktopApi() {
+  return typeof window !== 'undefined' ? window.swingstrDesktop : null
+}
+
+function extForBlob(blob) {
+  const name = typeof blob?.name === 'string' ? blob.name : ''
+  const named = name.match(/\.(mp4|mov|webm|m4v|avi)$/i)
+  if (named) return named[0].toLowerCase()
+  const type = blob?.type || ''
+  if (type.includes('webm')) return '.webm'
+  if (type.includes('quicktime')) return '.mov'
+  return '.mp4'
+}
 
 const LS_KEY = 'swingstr_students';
 const SCHEMA_VERSION = 2;
@@ -79,15 +97,37 @@ async function idbDelete(key) {
   });
 }
 
-export async function saveVideoBlob(videoId, blob) {
+/**
+ * `meta` ({ studentName, label }) only shapes where the desktop app files the
+ * video on disk — the app still finds it by id either way. The browser has no
+ * folders to file it in, so IndexedDB ignores it.
+ */
+export async function saveVideoBlob(videoId, blob, meta) {
+  const desktop = desktopApi();
+  if (desktop?.saveVideo) {
+    const buffer = await blob.arrayBuffer();
+    await desktop.saveVideo(videoId, buffer, extForBlob(blob), meta);
+    return;
+  }
   await idbPut(videoId, blob);
 }
 
 export async function loadVideoBlob(videoId) {
+  const desktop = desktopApi();
+  if (desktop?.loadVideo) {
+    const result = await desktop.loadVideo(videoId);
+    if (!result?.buffer) return null;
+    return new Blob([result.buffer]);
+  }
   return idbGet(videoId);
 }
 
 export async function deleteVideoBlob(videoId) {
+  const desktop = desktopApi();
+  if (desktop?.deleteVideo) {
+    await desktop.deleteVideo(videoId);
+    return;
+  }
   return idbDelete(videoId);
 }
 
@@ -118,6 +158,15 @@ function migrate(parsed) {
 }
 
 export function loadStudents() {
+  const desktop = desktopApi();
+  if (desktop?.loadStudents) {
+    try {
+      const payload = desktop.loadStudents();
+      if (payload) return migrate(payload).students;
+    } catch (err) {
+      console.warn('[storage] failed to read desktop library; falling back', err);
+    }
+  }
   if (typeof localStorage === 'undefined') return DEFAULT_STUDENTS;
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -131,13 +180,17 @@ export function loadStudents() {
 }
 
 export function saveStudents(students) {
+  const payload = { version: SCHEMA_VERSION, students };
   try {
-    localStorage.setItem(
-      LS_KEY,
-      JSON.stringify({ version: SCHEMA_VERSION, students })
-    );
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
   } catch (err) {
     console.warn('[storage] failed to persist students', err);
+  }
+  const desktop = desktopApi();
+  if (desktop?.saveStudents) {
+    desktop.saveStudents(payload).catch((err) => {
+      console.warn('[storage] failed to write desktop library', err);
+    });
   }
 }
 

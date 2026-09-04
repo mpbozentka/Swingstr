@@ -31,6 +31,7 @@ const VideoCanvas = forwardRef(
       isSignedIn,
       onClear,
       onTimeUpdate,
+      onPlayStateChange,
       trimStart,
       trimEnd,
       poseFrames,
@@ -269,10 +270,19 @@ const VideoCanvas = forwardRef(
       if (!vid || !container || vid.videoWidth === 0) return null;
       const wasPlaying = !vid.paused;
       if (wasPlaying) vid.pause();
-      vid.currentTime = time;
-      await new Promise((resolve) => {
-        vid.addEventListener('seeked', resolve, { once: true });
-      });
+      // Setting currentTime to the value it already holds fires no 'seeked'
+      // event, so waiting on one would hang forever — which is the normal case
+      // right after a marker jump parks the video exactly on that timestamp.
+      // The timeout covers the same class of miss on a browser that swallows
+      // the event: a stale frame beats a stuck export.
+      if (Math.abs(vid.currentTime - time) > 0.001) {
+        vid.currentTime = time;
+        await new Promise((resolve) => {
+          const done = () => { clearTimeout(timer); resolve(); };
+          const timer = setTimeout(done, 2000);
+          vid.addEventListener('seeked', done, { once: true });
+        });
+      }
       // Small delay to ensure frame is decoded
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const offscreen = document.createElement('canvas');
@@ -354,6 +364,14 @@ const VideoCanvas = forwardRef(
     const handleLoadedMetadata = () => {
       const v = videoRef.current;
       if (v && isActive && onTimeUpdate) onTimeUpdate(v.currentTime, v.duration);
+    };
+    // The video can start or stop without the play button being involved —
+    // clicking the frame with a drawing tool pauses it, for one. Report the
+    // element's actual state so the toolbar icon and the spacebar stay in step
+    // with what's on screen instead of drifting one press out of sync.
+    const handlePlayStateChange = () => {
+      const v = videoRef.current;
+      if (v && isActive && onPlayStateChange) onPlayStateChange(!v.paused);
     };
 
     const draw = useCallback(() => {
@@ -710,6 +728,8 @@ const VideoCanvas = forwardRef(
                 muted
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
+                onPlay={handlePlayStateChange}
+                onPause={handlePlayStateChange}
               />
               <canvas
                 ref={canvasRef}
