@@ -4,11 +4,12 @@ import AnalyzerView from './components/AnalyzerView';
 import Toast from './components/Toast';
 import UrlPromptModal from './components/UrlPromptModal';
 
-import { loadStudents, saveStudents, saveVideoBlob } from './utils/storage';
+import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
+import { useGoogleDrive } from './hooks/useGoogleDrive';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -81,6 +82,37 @@ export default function Swingstr() {
     if (!result) setUrlPromptSide(null);
     return result;
   }, [urlPromptSide, setUrlSource]);
+
+  const { streamFile: streamDriveFile } = useGoogleDrive(googleAuth.accessToken);
+
+  // Opens a video saved on a student's page into the analyzer. Each record
+  // type lives somewhere different: app storage, Google Drive, or a web link.
+  const openSavedVideo = useCallback(async (side, video) => {
+    try {
+      if (video.source === 'idb') {
+        const blob = await loadVideoBlob(video.videoId);
+        if (!blob) throw new Error("the saved file wasn't found");
+        const file = new File([blob], video.label || 'saved-video.mp4', { type: blob.type || 'video/mp4' });
+        handleUpload(side, { target: { files: [file] } });
+      } else if (video.source === 'drive') {
+        const blob = await streamDriveFile(video.driveFileId);
+        handleDriveLoad(side, blob, video.driveFileId);
+      } else if (video.remoteUrl) {
+        const result = await setUrlSource(side, video.remoteUrl);
+        if (result?.error) throw new Error(result.error);
+      } else {
+        throw new Error('this video has no file attached');
+      }
+    } catch (err) {
+      console.error('[openSavedVideo] failed', err);
+      const reason = err.message === 'SESSION_EXPIRED' ? 'Google sign-in expired — sign in again' : err.message;
+      setToast({ message: `Couldn't open "${video.label}": ${reason}`, kind: 'error' });
+      return;
+    }
+    if (side === 'right') setLayout('split');
+    setActiveScreen(side);
+    setView('analyze');
+  }, [handleUpload, handleDriveLoad, setUrlSource, streamDriveFile]);
 
   const {
     markers,
@@ -452,6 +484,7 @@ export default function Swingstr() {
           isSignedIn={googleAuth.isSignedIn}
           accessToken={googleAuth.accessToken}
           onDriveLoad={handleDriveLoad}
+          onOpenVideo={openSavedVideo}
         />
         {toastEl}
       </>

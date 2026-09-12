@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { UserPlus, Pencil, Trash2, StickyNote, HardDrive } from 'lucide-react';
+import { UserPlus, ChevronRight } from 'lucide-react';
 import { Button } from './ui/Button';
 import EditStudentModal from './EditStudentModal';
 import ConfirmDialog from './ConfirmDialog';
 import DrivePickerModal from './DrivePickerModal';
+import StudentDetail from './StudentDetail';
 import { deleteVideoBlob } from '../utils/storage';
 import { parseDriveFolderId } from '../hooks/useGoogleDrive';
 
@@ -22,9 +23,13 @@ export default function StudentLibrary({
   isSignedIn,
   accessToken,
   onDriveLoad,
+  onOpenVideo,
 }) {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [drivePickerStudent, setDrivePickerStudent] = useState(null);
+  // Which student's page is open; null shows the name list.
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = students.find((s) => s.id === selectedId) ?? null;
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
@@ -35,6 +40,7 @@ export default function StudentLibrary({
     });
     setStudents(students.filter((s) => s.id !== pendingDelete.id));
     setPendingDelete(null);
+    setSelectedId(null);
     onToast?.({ message: `Deleted ${target?.name ?? 'student'}.`, kind: 'info' });
   };
 
@@ -61,6 +67,10 @@ export default function StudentLibrary({
       students.map((s) => (s.id === id ? { ...s, notes: text } : s))
     );
   };
+
+  const sortedStudents = [...students].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+  );
 
   return (
     <div className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative">
@@ -102,109 +112,83 @@ export default function StudentLibrary({
         <Button onClick={onBack}>Back to Analyzer</Button>
       </header>
       <div className="flex-1 overflow-auto p-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="bg-gray-800 p-6 rounded-xl mb-8 border border-gray-700">
-            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <UserPlus size={20} /> Add New Student
-            </h2>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const newStudent = {
-                  id: newId(),
-                  name: formData.get('name'),
-                  email: formData.get('email'),
-                  phone: formData.get('phone'),
-                  videos: [],
-                  notes: '',
-                };
-                setStudents([...students, newStudent]);
-                e.target.reset();
-              }}
-              className="flex gap-4"
-            >
-              <input
-                name="name"
-                placeholder="Name"
-                required
-                className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1"
-              />
-              <input
-                name="email"
-                placeholder="Email"
-                className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1"
-              />
-              <input
-                name="phone"
-                placeholder="Phone"
-                className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1"
-              />
-              <button
-                type="submit"
-                className="bg-purple-600 px-6 py-2 rounded hover:bg-purple-500 font-bold"
+        {selected ? (
+          <StudentDetail
+            student={selected}
+            onBack={() => setSelectedId(null)}
+            onEdit={() => setEditingStudent(selected)}
+            onDelete={() => setPendingDelete({ id: selected.id, name: selected.name })}
+            onUpdateNotes={(text) => handleUpdateNotes(selected.id, text)}
+            onOpenVideo={onOpenVideo}
+            onBrowseDrive={() => setDrivePickerStudent(selected)}
+            isSignedIn={isSignedIn}
+          />
+        ) : (
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-gray-800 p-6 rounded-xl mb-8 border border-gray-700">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <UserPlus size={20} /> Add New Student
+              </h2>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  const newStudent = {
+                    id: newId(),
+                    name: formData.get('name'),
+                    email: formData.get('email'),
+                    phone: formData.get('phone'),
+                    videos: [],
+                    notes: '',
+                  };
+                  setStudents([...students, newStudent]);
+                  e.target.reset();
+                }}
+                className="flex gap-4"
               >
-                Add
-              </button>
-            </form>
-          </div>
-          <div className="grid gap-6">
-            {students.map((student) => (
-              <div
-                key={student.id}
-                className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 flex flex-col"
-              >
-                <div className="p-4 bg-gray-700/50 flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-lg">{student.name}</h3>
-                    <p className="text-sm text-gray-400">
-                      {student.email} • {student.phone}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    {isSignedIn && student.driveFolderId && (
-                      <button
-                        onClick={() => setDrivePickerStudent(student)}
-                        title="Browse this student's Google Drive videos"
-                        className="flex items-center gap-1 px-2 py-1.5 bg-gray-600 hover:bg-gray-500 rounded text-xs font-medium"
-                      >
-                        <HardDrive size={14} />
-                        Browse Videos
-                      </button>
-                    )}
+                <input
+                  name="name"
+                  placeholder="Name"
+                  required
+                  className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-0"
+                />
+                <input
+                  name="email"
+                  placeholder="Email"
+                  className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-0"
+                />
+                <input
+                  name="phone"
+                  placeholder="Phone"
+                  className="bg-gray-900 border border-gray-700 rounded px-4 py-2 flex-1 min-w-0"
+                />
+                <button
+                  type="submit"
+                  className="bg-purple-600 px-6 py-2 rounded hover:bg-purple-500 font-bold"
+                >
+                  Add
+                </button>
+              </form>
+            </div>
+            {sortedStudents.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center">No students yet.</p>
+            ) : (
+              <ul className="bg-gray-800 rounded-xl border border-gray-700 divide-y divide-gray-700 overflow-hidden">
+                {sortedStudents.map((student) => (
+                  <li key={student.id}>
                     <button
-                      onClick={() => setEditingStudent(student)}
-                      aria-label={`Edit ${student.name}`}
-                      className="p-2 bg-gray-600 hover:bg-gray-500 rounded"
+                      onClick={() => setSelectedId(student.id)}
+                      className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-700/60 transition-colors"
                     >
-                      <Pencil size={16} />
+                      <span className="font-medium">{student.name || 'Unnamed student'}</span>
+                      <ChevronRight size={18} className="text-gray-500" />
                     </button>
-                    <button
-                      onClick={() => setPendingDelete({ id: student.id, name: student.name })}
-                      aria-label={`Delete ${student.name}`}
-                      className="p-2 bg-red-900/50 hover:bg-red-600 rounded text-red-200"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-                <div className="px-4 pt-4">
-                  <div className="flex items-center gap-2 mb-2 text-sm text-gray-400">
-                    <StickyNote size={14} /> <span>Coach's Notes</span>
-                  </div>
-                  <textarea
-                    className="w-full bg-gray-900 border border-gray-700 rounded p-3 text-sm text-gray-300 focus:border-purple-500 outline-none transition-colors resize-none h-24"
-                    placeholder="Add notes..."
-                    value={student.notes || ''}
-                    onChange={(e) =>
-                      handleUpdateNotes(student.id, e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            ))}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
