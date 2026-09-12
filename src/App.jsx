@@ -9,7 +9,6 @@ import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
-import { usePoseAnalysis } from './hooks/usePoseAnalysis';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -40,14 +39,8 @@ export default function Swingstr() {
   const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
   // Virtual trim range per side: { start, end } in seconds, either may be
   // null. The video file is never modified — playback and scrubbing are
-  // confined to this window, and the future pose-analysis pass will only
-  // process frames inside it.
+  // confined to this window.
   const [trims, setTrims] = useState({ left: { start: null, end: null }, right: { start: null, end: null } });
-  // Phase 2: per-side camera-angle tag driving which angle formulas apply
-  // (plan 6.1) — user-set, no auto-detection. Handedness only affects which
-  // arm counts as "lead" for the face-on lead-arm angle.
-  const [viewTypes, setViewTypes] = useState({ left: null, right: null });
-  const [handedness, setHandedness] = useState({ left: 'RH', right: 'RH' });
   const [toast, setToast] = useState(null); // { message, kind }
   // Side currently waiting on a URL input (null when modal closed)
   const [urlPromptSide, setUrlPromptSide] = useState(null);
@@ -60,26 +53,15 @@ export default function Swingstr() {
   const leftRef = useRef();
   const rightRef = useRef();
 
-  const {
-    poseState,
-    engine: poseEngine,
-    toggleEngine: togglePoseEngine,
-    analyze: analyzePose,
-    cancelAnalysis: cancelPoseAnalysis,
-    toggleSkeleton: togglePoseSkeleton,
-    clearAnalysis: clearPoseAnalysis,
-  } = usePoseAnalysis({ leftRef, rightRef, trims, onToast: setToast });
-
   const handleSourceClear = useCallback((side) => {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
     setTrims((prev) => ({ ...prev, [side]: { start: null, end: null } }));
-    clearPoseAnalysis(side);
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
       setIsPlaying(false);
     }
-  }, [activeScreen, clearPoseAnalysis]);
+  }, [activeScreen]);
 
   const googleAuth = useGoogleAuth();
 
@@ -88,14 +70,6 @@ export default function Swingstr() {
     leftDriveFileId, rightDriveFileId,
     handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
-
-  // Pose cache is keyed to a specific video, not a side — loading a new
-  // video into a side that already has an analysis must drop the stale
-  // skeleton rather than draw it over unrelated footage (plan section 3).
-  // handleSourceClear covers the explicit clear-button path; this covers
-  // replace-in-place (upload/URL/Drive over an existing video).
-  useEffect(() => { clearPoseAnalysis('left'); }, [leftVideo, clearPoseAnalysis]);
-  useEffect(() => { clearPoseAnalysis('right'); }, [rightVideo, clearPoseAnalysis]);
 
   const requestUrlUpload = useCallback((side) => {
     setUrlPromptSide(side);
@@ -118,7 +92,6 @@ export default function Swingstr() {
   // P-markers are timestamps into one particular swing. Loading a new video
   // into a side clears that side's markers; the other side keeps its own, so
   // left and right can hold different swings each with their own positions.
-  // Same replace-in-place pattern as the pose cache above.
   useEffect(() => { clearMarkers('left'); }, [leftVideo, clearMarkers]);
   useEffect(() => { clearMarkers('right'); }, [rightVideo, clearMarkers]);
 
@@ -154,14 +127,6 @@ export default function Swingstr() {
 
   const handleClearTrim = useCallback(() => {
     setTrims((prev) => ({ ...prev, [activeScreen]: { start: null, end: null } }));
-  }, [activeScreen]);
-
-  const handleSetViewType = useCallback((vt) => {
-    setViewTypes((prev) => ({ ...prev, [activeScreen]: prev[activeScreen] === vt ? null : vt }));
-  }, [activeScreen]);
-
-  const handleToggleHandedness = useCallback(() => {
-    setHandedness((prev) => ({ ...prev, [activeScreen]: prev[activeScreen] === 'RH' ? 'LH' : 'RH' }));
   }, [activeScreen]);
 
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
@@ -324,7 +289,7 @@ export default function Swingstr() {
     }
   }, [sync, hasSyncOffset, syncOffset]);
 
-  // Shared by the timeline slider and the angle-graph panel: clamp to the
+  // Used by the timeline slider: clamp to the
   // active side's trim window so the UI doesn't visually jump ahead and snap
   // back on the next timeupdate, then seek whichever panes the current
   // sync/active state says should move.
@@ -530,7 +495,6 @@ export default function Swingstr() {
       globalTime={globalTime}
       globalDuration={globalDuration}
       onGlobalScrub={handleGlobalScrub}
-      onGraphSeek={scrubTo}
       onTimeUpdate={handleTimeUpdate}
       onPlayStateChange={handlePlayStateChange}
       onLinkedScrub={handleLinkedScrub}
@@ -541,20 +505,6 @@ export default function Swingstr() {
       activeTrim={trims[activeScreen]}
       onSetTrim={handleSetTrim}
       onClearTrim={handleClearTrim}
-      poseState={poseState}
-      activePose={poseState[activeScreen]}
-      poseBusy={poseState.left.status === 'analyzing' || poseState.right.status === 'analyzing'}
-      onAnalyze={() => analyzePose(activeScreen)}
-      onCancelAnalysis={() => cancelPoseAnalysis(activeScreen)}
-      onToggleSkeleton={() => togglePoseSkeleton(activeScreen)}
-      poseEngine={poseEngine}
-      onTogglePoseEngine={togglePoseEngine}
-      viewTypes={viewTypes}
-      handedness={handedness}
-      activeViewType={viewTypes[activeScreen]}
-      activeHandedness={handedness[activeScreen]}
-      onSetViewType={handleSetViewType}
-      onToggleHandedness={handleToggleHandedness}
       syncPoints={syncPoints}
       hasSyncOffset={hasSyncOffset}
       syncOffset={syncOffset}

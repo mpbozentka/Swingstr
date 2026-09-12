@@ -9,16 +9,12 @@ import {
   Scissors,
   Check,
   X,
-  PersonStanding,
-  Loader2,
   Download,
   Save,
 } from 'lucide-react';
 import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
-import { POSE_ENGINES } from '../hooks/usePoseAnalysis';
-import { SKELETON_ENGINE_UI } from '../constants/pose';
 
 const DRAW_TOOLS = ['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'];
 
@@ -67,8 +63,8 @@ function RailFlyout({ anchorRef, children }) {
 
 /**
  * One vertical strip floating over the left edge of the video, holding
- * everything that acts on the ACTIVE video: drawing, style, speed, trim, the
- * pose/view tags, and the two export paths. Frosted glass rather than a solid
+ * everything that acts on the ACTIVE video: drawing, style, speed, trim, and
+ * the two export paths. Frosted glass rather than a solid
  * panel so the footage keeps running underneath it. Flyout menus open to the
  * right of their own button, so the rail stays the only place these live.
  */
@@ -108,17 +104,6 @@ export default function LeftRail({
   activeTrim,
   onSetTrim,
   onClearTrim,
-  activePose,
-  poseBusy,
-  onAnalyze,
-  onCancelAnalysis,
-  onToggleSkeleton,
-  poseEngine,
-  onTogglePoseEngine,
-  activeViewType,
-  activeHandedness,
-  onSetViewType,
-  onToggleHandedness,
   onExport,
   onSave,
 }) {
@@ -128,14 +113,6 @@ export default function LeftRail({
 
   const toggleMenu = (name) => setActiveMenu(activeMenu === name ? null : name);
   const trimSet = activeTrim.start != null || activeTrim.end != null;
-  const engineLabel = POSE_ENGINES[poseEngine] ?? POSE_ENGINES.mediapipe;
-  const otherEngineLabel = poseEngine === 'rtmpose' ? POSE_ENGINES.mediapipe : POSE_ENGINES.rtmpose;
-  // The engine that produced the skeleton currently on screen — not
-  // necessarily the one selected for the next run.
-  const analyzedEngine = activePose.engine ?? 'mediapipe';
-  const analyzedLabel = POSE_ENGINES[analyzedEngine];
-  const analyzedUi = SKELETON_ENGINE_UI[analyzedEngine] ?? SKELETON_ENGINE_UI.mediapipe;
-  const analyzedColorName = analyzedUi.colorName;
 
   return (
     <aside
@@ -260,94 +237,6 @@ export default function LeftRail({
           className="text-gray-400 hover:bg-red-900/40 hover:text-red-300"
         >
           <X size={16} />
-        </RailButton>
-      )}
-
-      <Divider />
-
-      {activePose.status === 'analyzing' ? (
-        <>
-          <RailButton active title="Analyzing…" aria-label="Analyzing" disabled>
-            <Loader2 size={16} className="animate-spin" />
-            <span className="text-[9px] font-bold leading-none">
-              {Math.round(activePose.progress * 100)}%
-            </span>
-          </RailButton>
-          <RailButton
-            onClick={onCancelAnalysis}
-            title="Cancel analysis"
-            aria-label="Cancel analysis"
-            className="text-gray-400 hover:bg-red-900/40 hover:text-red-300"
-          >
-            <X size={16} />
-          </RailButton>
-        </>
-      ) : (
-        <RailButton
-          onClick={activePose.status === 'done' ? onToggleSkeleton : onAnalyze}
-          disabled={poseBusy}
-          active={activePose.status === 'done' && activePose.showSkeleton}
-          title={
-            activePose.status === 'done'
-              ? `${activePose.showSkeleton ? 'Hide' : 'Show'} skeleton overlay — this one was made by ${analyzedLabel} (${analyzedColorName})`
-              : `Analyze swing with ${engineLabel} (pose skeleton)`
-          }
-          aria-label={activePose.status === 'done' ? 'Toggle skeleton overlay' : 'Analyze swing'}
-        >
-          <PersonStanding size={16} />
-          <span className="text-[9px] font-bold leading-none flex items-center gap-1">
-            {activePose.status === 'done' ? 'Skel' : 'Anlz'}
-            {/* Dot matches the on-screen skeleton colour, so the rail says
-                which engine drew it without needing the tooltip. A background
-                colour, not a text colour, so the active (purple) state can't
-                override it. */}
-            {activePose.status === 'done' && (
-              <span className={`w-1.5 h-1.5 rounded-full ${analyzedUi.dotClassName}`} />
-            )}
-          </span>
-        </RailButton>
-      )}
-
-      {/* Experimental: pick which pose engine the next analysis uses. RTMPose
-          is more accurate on fast motion but is 2-D only, so the shoulder- and
-          hip-turn graph traces go blank under it. */}
-      <RailButton
-        onClick={onTogglePoseEngine}
-        disabled={poseBusy}
-        active={poseEngine === 'rtmpose'}
-        title={`Pose engine: ${engineLabel} — click to switch to ${otherEngineLabel}. RTMPose is more accurate on fast motion; MediaPipe is faster and is the only one with 3-D turn graphs.`}
-        aria-label={`Pose engine: ${engineLabel}. Switch to ${otherEngineLabel}`}
-      >
-        <span className="text-[10px] font-bold leading-none">
-          {poseEngine === 'rtmpose' ? 'RTM' : 'MP'}
-        </span>
-      </RailButton>
-
-      <RailButton
-        onClick={() => onSetViewType('dtl')}
-        active={activeViewType === 'dtl'}
-        title="Tag this pane as down-the-line view"
-        aria-label="Tag as down-the-line view"
-      >
-        <span className="text-[11px] font-bold leading-none">DTL</span>
-      </RailButton>
-
-      <RailButton
-        onClick={() => onSetViewType('face-on')}
-        active={activeViewType === 'face-on'}
-        title="Tag this pane as face-on view"
-        aria-label="Tag as face-on view"
-      >
-        <span className="text-[11px] font-bold leading-none">FO</span>
-      </RailButton>
-
-      {activeViewType === 'face-on' && (
-        <RailButton
-          onClick={onToggleHandedness}
-          title="Golfer handedness — sets which arm counts as the lead arm"
-          aria-label="Toggle golfer handedness"
-        >
-          <span className="text-[11px] font-bold leading-none">{activeHandedness}</span>
         </RailButton>
       )}
 

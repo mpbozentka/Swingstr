@@ -1,5 +1,5 @@
 /**
- * Records a clip of the live analyzer panes — video, telestration, skeleton,
+ * Records a clip of the live analyzer panes — video, telestration,
  * zoom and pan — between two marker times, and returns it as a downloadable
  * file.
  *

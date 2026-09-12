@@ -22,7 +22,6 @@ import Timeline from './Timeline';
 import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
-import SwingGraphPanel from './SwingGraphPanel';
 
 // The floating control bar is sized by a single scale factor rather than an
 // explicit width/height, so the buttons, text and scrub track all shrink
@@ -79,7 +78,6 @@ export default function AnalyzerView({
   globalTime,
   globalDuration,
   onGlobalScrub,
-  onGraphSeek,
   onTimeUpdate,
   onPlayStateChange,
   onLinkedScrub,
@@ -90,20 +88,6 @@ export default function AnalyzerView({
   activeTrim,
   onSetTrim,
   onClearTrim,
-  poseState,
-  activePose,
-  poseBusy,
-  onAnalyze,
-  onCancelAnalysis,
-  onToggleSkeleton,
-  poseEngine,
-  onTogglePoseEngine,
-  viewTypes,
-  handedness,
-  activeViewType,
-  activeHandedness,
-  onSetViewType,
-  onToggleHandedness,
   syncPoints,
   hasSyncOffset,
   syncOffset = 0,
@@ -340,11 +324,6 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
-          poseFrames={poseState.left.frames}
-          poseEngine={poseState.left.engine}
-          showSkeleton={poseState.left.showSkeleton}
-          viewType={viewTypes.left}
-          handedness={handedness.left}
         />
 
         {layout === 'split' && (
@@ -372,11 +351,6 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
-            poseFrames={poseState.right.frames}
-            poseEngine={poseState.right.engine}
-            showSkeleton={poseState.right.showSkeleton}
-            viewType={viewTypes.right}
-            handedness={handedness.right}
           />
         )}
         <LeftRail
@@ -394,17 +368,6 @@ export default function AnalyzerView({
           activeTrim={activeTrim}
           onSetTrim={onSetTrim}
           onClearTrim={onClearTrim}
-          activePose={activePose}
-          poseBusy={poseBusy}
-          onAnalyze={onAnalyze}
-          onCancelAnalysis={onCancelAnalysis}
-          onToggleSkeleton={onToggleSkeleton}
-          poseEngine={poseEngine}
-          onTogglePoseEngine={onTogglePoseEngine}
-          activeViewType={activeViewType}
-          activeHandedness={activeHandedness}
-          onSetViewType={onSetViewType}
-          onToggleHandedness={onToggleHandedness}
           onExport={() => setShowSequenceModal(true)}
           onSave={openSaveModal}
         />
@@ -485,20 +448,6 @@ export default function AnalyzerView({
         </div>
       </main>
 
-      {/* Angle-over-time graph (plan section 7) — renders nothing until a
-          pane has a finished analysis and a view-type tag. */}
-      <SwingGraphPanel
-        poseState={poseState}
-        viewTypes={viewTypes}
-        handedness={handedness}
-        activeScreen={activeScreen}
-        trims={trims}
-        globalTime={globalTime}
-        globalDuration={globalDuration}
-        onSeek={onGraphSeek}
-        markers={markers}
-        layout={layout}
-      />
       </div>
     </div>
   );

@@ -3,15 +3,11 @@ import React, {
   useRef,
   useEffect,
   useCallback,
-  useMemo,
   forwardRef,
   useImperativeHandle,
 } from 'react';
 import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
-import { renderSkeleton } from '../utils/poseRenderer';
-import { sampleFrameAtTime } from '../constants/pose';
-import { computeSwingAngles } from '../utils/swingAngles';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
@@ -34,11 +30,6 @@ const VideoCanvas = forwardRef(
       onPlayStateChange,
       trimStart,
       trimEnd,
-      poseFrames,
-      poseEngine,
-      showSkeleton,
-      viewType,
-      handedness,
     },
     ref
   ) => {
@@ -71,56 +62,6 @@ const VideoCanvas = forwardRef(
       return t;
     }, []);
 
-    // Mirrors for the pose overlay, same pattern as shapesRef/trimRef above —
-    // the playback rAF loop below needs the latest values without re-binding.
-    const poseFramesRef = useRef(null);
-    useEffect(() => { poseFramesRef.current = poseFrames ?? null; }, [poseFrames]);
-    const poseEngineRef = useRef(null);
-    useEffect(() => { poseEngineRef.current = poseEngine ?? null; }, [poseEngine]);
-    const showSkeletonRef = useRef(false);
-    useEffect(() => { showSkeletonRef.current = !!showSkeleton; }, [showSkeleton]);
-    // Populated once `draw` is defined below; lets the trim rAF loop trigger
-    // a redraw each frame so the skeleton tracks the playhead between React
-    // renders (draw() otherwise only re-runs when its own deps change).
-    const drawRef = useRef(null);
-
-    // Drives the angle readout card (text, not canvas) — a plain React state
-    // update on 'timeupdate'/'seeked' is plenty smooth for numbers, unlike
-    // the skeleton which needs the rAF loop to avoid visible lag.
-    const [readoutTime, setReadoutTime] = useState(0);
-    useEffect(() => {
-      const vid = videoRef.current;
-      if (!vid) return undefined;
-      const update = () => setReadoutTime(vid.currentTime);
-      vid.addEventListener('timeupdate', update);
-      vid.addEventListener('seeked', update);
-      return () => {
-        vid.removeEventListener('timeupdate', update);
-        vid.removeEventListener('seeked', update);
-      };
-    }, [src]);
-
-    // Rows render only once analysis is done (poseFrames populated) and a
-    // view type is tagged (plan 6.1) — no auto-detection of camera angle.
-    // addressFrame is the first cached frame of the analyzed range, used as
-    // the head-sway baseline. Capped at 5 rows (plan 6.3); face-on naturally
-    // produces 6 candidates so the lowest-priority one (hip turn) is dropped.
-    const angleRows = useMemo(() => {
-      if (!showSkeleton || !viewType || !poseFrames?.length) return [];
-      const vid = videoRef.current;
-      if (!vid?.videoWidth) return [];
-      const frame = sampleFrameAtTime(poseFrames, readoutTime);
-      if (!frame) return [];
-      return computeSwingAngles({
-        frame,
-        addressFrame: poseFrames[0],
-        viewType,
-        handedness,
-        videoWidth: vid.videoWidth,
-        videoHeight: vid.videoHeight,
-      }).slice(0, 5);
-    }, [showSkeleton, viewType, handedness, poseFrames, readoutTime]);
-
     // While playing, keep the playhead inside the trim window: loop back to
     // the in-point when the out-point is reached. Runs as a rAF loop because
     // `timeupdate` only fires every ~250ms, which would overshoot the
@@ -138,7 +79,6 @@ const VideoCanvas = forwardRef(
             // Native `loop` wrapped back to 0 — jump forward to the in-point.
             vid.currentTime = start;
           }
-          if (showSkeletonRef.current) drawRef.current?.();
         }
         frame = requestAnimationFrame(tick);
       };
@@ -225,7 +165,7 @@ const VideoCanvas = forwardRef(
 
     /**
      * Paint this pane exactly as it looks on screen (video + zoom/pan +
-     * telestration + skeleton overlay) into an arbitrary rect of another
+     * telestration) into an arbitrary rect of another
      * canvas. Used by the video-clip recorder to composite one or two panes
      * into a single frame without duplicating the draw logic.
      */
@@ -333,8 +273,7 @@ const VideoCanvas = forwardRef(
           w: containerRef.current?.clientWidth ?? 0,
           h: containerRef.current?.clientHeight ?? 0,
         }),
-        // Raw element access for the pose-analysis loop, which drives its own
-        // seek/detect steps (needs the actual <video> to feed the landmarker).
+        // Raw element access for the clip recorder, which follows playback.
         getVideoElement: () => videoRef.current,
         // Read shapes via the ref so we don't rebind the imperative handle
         // every time the user finishes a stroke. (#8)
@@ -422,12 +361,6 @@ const VideoCanvas = forwardRef(
       ctx.scale(zoomLevel, zoomLevel);
       ctx.translate(-centerX, -centerY);
 
-      // Skeleton draws first (under shapes) so telestration stays on top.
-      if (showSkeletonRef.current && poseFramesRef.current) {
-        const frame = sampleFrameAtTime(poseFramesRef.current, vid?.currentTime ?? 0);
-        if (frame) renderSkeleton(ctx, frame, { videoRect, zoomLevel, engine: poseEngineRef.current });
-      }
-
       shapes.forEach((shape) =>
         renderShape(ctx, shape, {
           zoomLevel,
@@ -470,30 +403,6 @@ const VideoCanvas = forwardRef(
       const anim = requestAnimationFrame(draw);
       return () => cancelAnimationFrame(anim);
     }, [draw]);
-
-    useEffect(() => { drawRef.current = draw; }, [draw]);
-
-    // Redraw when the pose overlay toggles or a fresh analysis result lands —
-    // draw()'s own deps don't cover these (read via ref, see mirrors above),
-    // so without this the canvas wouldn't update until the next unrelated
-    // redraw or playback frame.
-    useEffect(() => {
-      draw();
-    }, [draw, poseFrames, poseEngine, showSkeleton]);
-
-    // Redraw immediately on any seek (scrub, frame-step, marker jump) so the
-    // skeleton doesn't lag behind a stale frame while paused — draw() only
-    // reruns on its own state deps otherwise, none of which include
-    // currentTime. The playback rAF loop above covers the playing case.
-    useEffect(() => {
-      const vid = videoRef.current;
-      if (!vid) return undefined;
-      const onSeeked = () => {
-        if (showSkeletonRef.current) drawRef.current?.();
-      };
-      vid.addEventListener('seeked', onSeeked);
-      return () => vid.removeEventListener('seeked', onSeeked);
-    }, [src]);
 
     const getEventCoords = (e) => {
       if (e.touches?.[0]) {
@@ -738,16 +647,6 @@ const VideoCanvas = forwardRef(
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full"
               />
-              {angleRows.length > 0 && (
-                <div className="absolute top-12 left-4 z-20 pointer-events-none bg-gray-900/80 border border-sky-600/40 rounded px-2 py-1.5 font-mono text-[11px] text-sky-100 leading-tight space-y-0.5">
-                  {angleRows.map((row) => (
-                    <div key={row.label} className="flex justify-between gap-3">
-                      <span className="text-sky-400/70">{row.label}</span>
-                      <span>{row.value}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
