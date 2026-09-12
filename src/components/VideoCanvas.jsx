@@ -35,6 +35,7 @@ const VideoCanvas = forwardRef(
       trimStart,
       trimEnd,
       poseFrames,
+      poseEngine,
       showSkeleton,
       viewType,
       handedness,
@@ -74,6 +75,8 @@ const VideoCanvas = forwardRef(
     // the playback rAF loop below needs the latest values without re-binding.
     const poseFramesRef = useRef(null);
     useEffect(() => { poseFramesRef.current = poseFrames ?? null; }, [poseFrames]);
+    const poseEngineRef = useRef(null);
+    useEffect(() => { poseEngineRef.current = poseEngine ?? null; }, [poseEngine]);
     const showSkeletonRef = useRef(false);
     useEffect(() => { showSkeletonRef.current = !!showSkeleton; }, [showSkeleton]);
     // Populated once `draw` is defined below; lets the trim rAF loop trigger
@@ -422,7 +425,7 @@ const VideoCanvas = forwardRef(
       // Skeleton draws first (under shapes) so telestration stays on top.
       if (showSkeletonRef.current && poseFramesRef.current) {
         const frame = sampleFrameAtTime(poseFramesRef.current, vid?.currentTime ?? 0);
-        if (frame) renderSkeleton(ctx, frame, { videoRect, zoomLevel });
+        if (frame) renderSkeleton(ctx, frame, { videoRect, zoomLevel, engine: poseEngineRef.current });
       }
 
       shapes.forEach((shape) =>
@@ -476,7 +479,7 @@ const VideoCanvas = forwardRef(
     // redraw or playback frame.
     useEffect(() => {
       draw();
-    }, [draw, poseFrames, showSkeleton]);
+    }, [draw, poseFrames, poseEngine, showSkeleton]);
 
     // Redraw immediately on any seek (scrub, frame-step, marker jump) so the
     // skeleton doesn't lag behind a stale frame while paused — draw() only

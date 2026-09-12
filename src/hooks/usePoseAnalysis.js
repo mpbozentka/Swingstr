@@ -1,5 +1,29 @@
 import { useCallback, useRef, useState } from 'react';
 import { getPoseLandmarker, tryStartAnalysis, endAnalysis } from '../utils/poseLandmarker';
+import { getRtmposeSessions, detectRtmpose } from '../utils/rtmposeLandmarker';
+
+export const POSE_ENGINES = Object.freeze({
+  mediapipe: 'MediaPipe',
+  rtmpose: 'RTMPose',
+});
+
+/**
+ * Both engines reduce to the same call: give me a frame, get back
+ * `{ landmarks, world }`. MediaPipe detects synchronously off an
+ * already-loaded model; RTMPose runs two ONNX models and is async. Loading
+ * happens once here, outside the per-frame loop.
+ */
+async function loadDetector(engine) {
+  if (engine === 'rtmpose') {
+    const sessions = await getRtmposeSessions();
+    return (vid) => detectRtmpose(sessions, vid);
+  }
+  const landmarker = await getPoseLandmarker();
+  return (vid) => {
+    const result = landmarker.detect(vid);
+    return { landmarks: result.landmarks?.[0] ?? null, world: result.worldLandmarks?.[0] ?? null };
+  };
+}
 
 const STEP = 1 / 30; // seconds of *playback* time per sample — see plan 5.4
 const SMOOTH_KERNEL = [0.1, 0.2, 0.4, 0.2, 0.1]; // MUST stay symmetric — see smoothFrames
@@ -15,6 +39,9 @@ const idleSideState = Object.freeze({
   // VideoCanvas (the graph panel) can't read the <video> element in render.
   videoWidth: null,
   videoHeight: null,
+  // Which engine produced `frames` — the two aren't interchangeable (RTMPose
+  // has no 3-D output), so the UI needs to say which one you're looking at.
+  engine: null,
 });
 
 function blendCoords(curr, neighbors, key) {
@@ -95,6 +122,7 @@ async function seekAndSettle(vid, t) {
  */
 export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
   const [poseState, setPoseState] = useState({ left: { ...idleSideState }, right: { ...idleSideState } });
+  const [engine, setEngine] = useState('mediapipe');
   const abortRef = useRef({ left: false, right: false });
 
   const updateSide = useCallback((side, patch) => {
@@ -126,7 +154,7 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
     vid.pause();
 
     try {
-      const landmarker = await getPoseLandmarker();
+      const detect = await loadDetector(engine);
       const trim = trims[side] || {};
       const start = trim.start ?? 0;
       const end = trim.end ?? vid.duration;
@@ -147,12 +175,8 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
         // frame — skip duplicates so cache timestamps stay strictly increasing.
         if (frames.length && mediaTime <= frames[frames.length - 1].t) continue;
 
-        const result = landmarker.detect(vid);
-        frames.push({
-          t: mediaTime,
-          landmarks: result.landmarks?.[0] ?? null,
-          world: result.worldLandmarks?.[0] ?? null,
-        });
+        const { landmarks, world } = await detect(vid);
+        frames.push({ t: mediaTime, landmarks, world });
       }
 
       if (abortRef.current[side]) {
@@ -165,6 +189,7 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
           showSkeleton: true,
           videoWidth: vid.videoWidth,
           videoHeight: vid.videoHeight,
+          engine,
         });
       }
     } catch (err) {
@@ -176,7 +201,7 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
       vid.currentTime = resumeTime;
       if (wasPlaying) vid.play().catch(() => {});
     }
-  }, [leftRef, rightRef, trims, onToast, updateSide]);
+  }, [leftRef, rightRef, trims, onToast, updateSide, engine]);
 
   const cancelAnalysis = useCallback((side) => {
     abortRef.current[side] = true;
@@ -191,5 +216,11 @@ export function usePoseAnalysis({ leftRef, rightRef, trims, onToast }) {
     updateSide(side, { ...idleSideState });
   }, [updateSide]);
 
-  return { poseState, analyze, cancelAnalysis, toggleSkeleton, clearAnalysis };
+  // Switching engines invalidates nothing already cached — old frames stay
+  // viewable and stamped with the engine that made them.
+  const toggleEngine = useCallback(() => {
+    setEngine((prev) => (prev === 'mediapipe' ? 'rtmpose' : 'mediapipe'));
+  }, []);
+
+  return { poseState, engine, toggleEngine, analyze, cancelAnalysis, toggleSkeleton, clearAnalysis };
 }

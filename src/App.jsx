@@ -62,6 +62,8 @@ export default function Swingstr() {
 
   const {
     poseState,
+    engine: poseEngine,
+    toggleEngine: togglePoseEngine,
     analyze: analyzePose,
     cancelAnalysis: cancelPoseAnalysis,
     toggleSkeleton: togglePoseSkeleton,
@@ -545,6 +547,8 @@ export default function Swingstr() {
       onAnalyze={() => analyzePose(activeScreen)}
       onCancelAnalysis={() => cancelPoseAnalysis(activeScreen)}
       onToggleSkeleton={() => togglePoseSkeleton(activeScreen)}
+      poseEngine={poseEngine}
+      onTogglePoseEngine={togglePoseEngine}
       viewTypes={viewTypes}
       handedness={handedness}
       activeViewType={viewTypes[activeScreen]}

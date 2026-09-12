@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Play,
   Pause,
@@ -23,6 +23,26 @@ import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
 import SwingGraphPanel from './SwingGraphPanel';
+
+// The floating control bar is sized by a single scale factor rather than an
+// explicit width/height, so the buttons, text and scrub track all shrink
+// together — dragging it smaller actually gets it out of the way instead of
+// just cramming the same big controls into a narrower box.
+const BAR_SCALE_KEY = 'swingstr_bar_scale';
+const BAR_SCALE_MIN = 0.45;
+const BAR_SCALE_MAX = 1;
+
+const clampBarScale = (v) => Math.min(BAR_SCALE_MAX, Math.max(BAR_SCALE_MIN, v));
+
+function readBarScale() {
+  try {
+    const saved = parseFloat(localStorage.getItem(BAR_SCALE_KEY));
+    if (Number.isFinite(saved)) return clampBarScale(saved);
+  } catch {
+    // storage disabled — fall through to full size
+  }
+  return BAR_SCALE_MAX;
+}
 
 export default function AnalyzerView({
   onOpenLibrary,
@@ -76,6 +96,8 @@ export default function AnalyzerView({
   onAnalyze,
   onCancelAnalysis,
   onToggleSkeleton,
+  poseEngine,
+  onTogglePoseEngine,
   viewTypes,
   handedness,
   activeViewType,
@@ -106,6 +128,43 @@ export default function AnalyzerView({
   onDriveLoad,
 }) {
   const [drivePickerSide, setDrivePickerSide] = React.useState(null);
+
+  const [barScale, setBarScale] = useState(readBarScale);
+  const barRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BAR_SCALE_KEY, String(barScale));
+    } catch {
+      // storage disabled — the size just won't survive a restart
+    }
+  }, [barScale]);
+
+  /**
+   * The bar is pinned by its bottom-right corner, so the horizontal gap
+   * between the pointer and that corner IS the bar's on-screen width. Divide
+   * by its unscaled width and you have the new scale outright — reading the
+   * absolute position each move instead of accumulating deltas, so a long
+   * drag can't drift away from the cursor.
+   */
+  const startBarResize = useCallback((e) => {
+    const el = barRef.current;
+    if (!el) return;
+    e.preventDefault();
+
+    const rect = el.getBoundingClientRect(); // already includes the transform
+    const unscaledWidth = rect.width / barScale;
+    const anchorRight = rect.right;
+
+    const onMove = (ev) => setBarScale(clampBarScale((anchorRight - ev.clientX) / unscaledWidth));
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [barScale]);
+
   return (
     <div
       className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative"
@@ -282,6 +341,7 @@ export default function AnalyzerView({
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
           poseFrames={poseState.left.frames}
+          poseEngine={poseState.left.engine}
           showSkeleton={poseState.left.showSkeleton}
           viewType={viewTypes.left}
           handedness={handedness.left}
@@ -313,6 +373,7 @@ export default function AnalyzerView({
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
             poseFrames={poseState.right.frames}
+            poseEngine={poseState.right.engine}
             showSkeleton={poseState.right.showSkeleton}
             viewType={viewTypes.right}
             handedness={handedness.right}
@@ -338,6 +399,8 @@ export default function AnalyzerView({
           onAnalyze={onAnalyze}
           onCancelAnalysis={onCancelAnalysis}
           onToggleSkeleton={onToggleSkeleton}
+          poseEngine={poseEngine}
+          onTogglePoseEngine={onTogglePoseEngine}
           activeViewType={activeViewType}
           activeHandedness={activeHandedness}
           onSetViewType={onSetViewType}
@@ -347,11 +410,28 @@ export default function AnalyzerView({
         />
 
         {/* Scrubber and transport, floating on glass over the footage. Left
-            inset clears the tool rail. */}
+            inset clears the tool rail. Scaled from the bottom-right corner so
+            the drag grip on the left edge shrinks the whole thing toward the
+            corner it's pinned to. */}
         <div
+          ref={barRef}
           className="footer-mobile-safe absolute bottom-4 left-20 right-4 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
+          style={{ transform: `scale(${barScale})`, transformOrigin: 'bottom right' }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Resize grip. Counter-scaled so it stays the same grabbable size
+              no matter how small the bar itself gets. */}
+          <div
+            onPointerDown={startBarResize}
+            onDoubleClick={() => setBarScale(BAR_SCALE_MAX)}
+            role="separator"
+            aria-label="Resize control bar"
+            title="Drag to resize the control bar — double-click to reset"
+            className="absolute left-0 top-1/2 w-4 h-12 flex items-center justify-center cursor-ew-resize touch-none group"
+            style={{ transform: `translate(-50%, -50%) scale(${1 / barScale})` }}
+          >
+            <div className="w-1 h-9 rounded-full bg-white/25 group-hover:bg-white/70 transition-colors" />
+          </div>
           <Timeline
             globalTime={globalTime}
             globalDuration={globalDuration}

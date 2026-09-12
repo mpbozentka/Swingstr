@@ -7,10 +7,10 @@ import {
   POSE_CONNECTIONS,
   POSE_POINT_INDICES,
   VISIBILITY_THRESHOLD,
-  SKELETON_COLOR,
   SKELETON_LINE_WIDTH,
   SKELETON_POINT_RADIUS,
   midpoint,
+  skeletonColorFor,
 } from '../constants/pose';
 
 function isVisible(lm) {
@@ -42,12 +42,12 @@ function drawSegment(ctx, a, b, videoRect) {
  * pan/zoom-transformed save/restore block VideoCanvas uses for shapes, and
  * before shapes render so telestration stays visually on top.
  */
-export function renderSkeleton(ctx, frame, { videoRect, zoomLevel }) {
+export function renderSkeleton(ctx, frame, { videoRect, zoomLevel, engine }) {
   const landmarks = frame?.landmarks;
   if (!landmarks) return;
 
   ctx.save();
-  ctx.strokeStyle = SKELETON_COLOR;
+  ctx.strokeStyle = skeletonColorFor(engine);
   ctx.lineWidth = SKELETON_LINE_WIDTH / zoomLevel;
 
   POSE_CONNECTIONS.forEach(([aIdx, bIdx]) => {

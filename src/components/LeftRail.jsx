@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MousePointer2,
   PenTool,
@@ -16,8 +17,53 @@ import {
 import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
+import { POSE_ENGINES } from '../hooks/usePoseAnalysis';
+import { SKELETON_ENGINE_UI } from '../constants/pose';
 
 const DRAW_TOOLS = ['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'];
+
+/**
+ * Renders a rail flyout at the document root, pinned to its button.
+ *
+ * It can't just live inside the rail: the rail scrolls (overflow-y-auto),
+ * and a scroll container clips its sides as well as its top and bottom, so a
+ * menu poking out to the right is invisible. position:fixed doesn't escape
+ * either — the rail is transform-centred, which makes it the containing block
+ * for fixed children. A portal is the only way out.
+ *
+ * Events still bubble to the rail through React's tree, so the rail's
+ * click-swallowing (which keeps a menu from closing itself) still applies.
+ */
+function RailFlyout({ anchorRef, children }) {
+  const boxRef = useRef(null);
+  // Off-screen for the first paint, then measured and placed in a layout
+  // effect — so it never flashes in the wrong spot.
+  const [pos, setPos] = useState({ left: -9999, top: -9999 });
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current;
+      const box = boxRef.current;
+      if (!anchor || !box) return;
+      const r = anchor.getBoundingClientRect();
+      setPos({
+        left: r.right + 8,
+        // Keep tall menus (the tool grid) fully on screen near the bottom.
+        top: Math.max(8, Math.min(r.top, window.innerHeight - box.offsetHeight - 8)),
+      });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [anchorRef]);
+
+  return createPortal(
+    <div ref={boxRef} className="fixed z-50" style={{ left: pos.left, top: pos.top }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 /**
  * One vertical strip floating over the left edge of the video, holding
@@ -67,6 +113,8 @@ export default function LeftRail({
   onAnalyze,
   onCancelAnalysis,
   onToggleSkeleton,
+  poseEngine,
+  onTogglePoseEngine,
   activeViewType,
   activeHandedness,
   onSetViewType,
@@ -74,8 +122,20 @@ export default function LeftRail({
   onExport,
   onSave,
 }) {
+  const toolsAnchorRef = useRef(null);
+  const styleAnchorRef = useRef(null);
+  const speedAnchorRef = useRef(null);
+
   const toggleMenu = (name) => setActiveMenu(activeMenu === name ? null : name);
   const trimSet = activeTrim.start != null || activeTrim.end != null;
+  const engineLabel = POSE_ENGINES[poseEngine] ?? POSE_ENGINES.mediapipe;
+  const otherEngineLabel = poseEngine === 'rtmpose' ? POSE_ENGINES.mediapipe : POSE_ENGINES.rtmpose;
+  // The engine that produced the skeleton currently on screen — not
+  // necessarily the one selected for the next run.
+  const analyzedEngine = activePose.engine ?? 'mediapipe';
+  const analyzedLabel = POSE_ENGINES[analyzedEngine];
+  const analyzedUi = SKELETON_ENGINE_UI[analyzedEngine] ?? SKELETON_ENGINE_UI.mediapipe;
+  const analyzedColorName = analyzedUi.colorName;
 
   return (
     <aside
@@ -91,7 +151,7 @@ export default function LeftRail({
         <MousePointer2 size={18} />
       </RailButton>
 
-      <div className="relative">
+      <div ref={toolsAnchorRef}>
         <RailButton
           onClick={() => toggleMenu('tools')}
           active={DRAW_TOOLS.includes(tool) || activeMenu === 'tools'}
@@ -100,17 +160,14 @@ export default function LeftRail({
         >
           <PenTool size={18} />
         </RailButton>
-        {activeMenu === 'tools' && (
-          <ToolMenu
-            tool={tool}
-            setTool={setTool}
-            onClose={() => setActiveMenu(null)}
-            positionClass="absolute top-0 left-[calc(100%+8px)]"
-          />
-        )}
       </div>
+      {activeMenu === 'tools' && (
+        <RailFlyout anchorRef={toolsAnchorRef}>
+          <ToolMenu tool={tool} setTool={setTool} onClose={() => setActiveMenu(null)} positionClass="" />
+        </RailFlyout>
+      )}
 
-      <div className="relative">
+      <div ref={styleAnchorRef}>
         <RailButton
           onClick={() => toggleMenu('style')}
           active={activeMenu === 'style'}
@@ -119,16 +176,18 @@ export default function LeftRail({
         >
           <Palette size={18} style={{ color: activeMenu === 'style' ? undefined : color }} />
         </RailButton>
-        {activeMenu === 'style' && (
+      </div>
+      {activeMenu === 'style' && (
+        <RailFlyout anchorRef={styleAnchorRef}>
           <StyleMenu
             color={color}
             setColor={setColor}
             lineWidth={lineWidth}
             setLineWidth={setLineWidth}
-            positionClass="absolute top-0 left-[calc(100%+8px)]"
+            positionClass=""
           />
-        )}
-      </div>
+        </RailFlyout>
+      )}
 
       <RailButton
         onClick={clearShapes}
@@ -141,7 +200,7 @@ export default function LeftRail({
 
       <Divider />
 
-      <div className="relative">
+      <div ref={speedAnchorRef}>
         <RailButton
           onClick={() => toggleMenu('speed')}
           active={activeMenu === 'speed' || speed !== 1}
@@ -151,15 +210,17 @@ export default function LeftRail({
           <Gauge size={16} />
           <span className="text-[9px] font-bold leading-none">{speed}x</span>
         </RailButton>
-        {activeMenu === 'speed' && (
+      </div>
+      {activeMenu === 'speed' && (
+        <RailFlyout anchorRef={speedAnchorRef}>
           <SpeedMenu
             speed={speed}
             changeSpeed={changeSpeed}
             onClose={() => setActiveMenu(null)}
-            positionClass="absolute top-0 left-[calc(100%+8px)]"
+            positionClass=""
           />
-        )}
-      </div>
+        </RailFlyout>
+      )}
 
       <Divider />
 
@@ -228,17 +289,39 @@ export default function LeftRail({
           active={activePose.status === 'done' && activePose.showSkeleton}
           title={
             activePose.status === 'done'
-              ? (activePose.showSkeleton ? 'Hide skeleton overlay' : 'Show skeleton overlay')
-              : 'Analyze swing (pose skeleton)'
+              ? `${activePose.showSkeleton ? 'Hide' : 'Show'} skeleton overlay — this one was made by ${analyzedLabel} (${analyzedColorName})`
+              : `Analyze swing with ${engineLabel} (pose skeleton)`
           }
           aria-label={activePose.status === 'done' ? 'Toggle skeleton overlay' : 'Analyze swing'}
         >
           <PersonStanding size={16} />
-          <span className="text-[9px] font-bold leading-none">
+          <span className="text-[9px] font-bold leading-none flex items-center gap-1">
             {activePose.status === 'done' ? 'Skel' : 'Anlz'}
+            {/* Dot matches the on-screen skeleton colour, so the rail says
+                which engine drew it without needing the tooltip. A background
+                colour, not a text colour, so the active (purple) state can't
+                override it. */}
+            {activePose.status === 'done' && (
+              <span className={`w-1.5 h-1.5 rounded-full ${analyzedUi.dotClassName}`} />
+            )}
           </span>
         </RailButton>
       )}
+
+      {/* Experimental: pick which pose engine the next analysis uses. RTMPose
+          is more accurate on fast motion but is 2-D only, so the shoulder- and
+          hip-turn graph traces go blank under it. */}
+      <RailButton
+        onClick={onTogglePoseEngine}
+        disabled={poseBusy}
+        active={poseEngine === 'rtmpose'}
+        title={`Pose engine: ${engineLabel} — click to switch to ${otherEngineLabel}. RTMPose is more accurate on fast motion; MediaPipe is faster and is the only one with 3-D turn graphs.`}
+        aria-label={`Pose engine: ${engineLabel}. Switch to ${otherEngineLabel}`}
+      >
+        <span className="text-[10px] font-bold leading-none">
+          {poseEngine === 'rtmpose' ? 'RTM' : 'MP'}
+        </span>
+      </RailButton>
 
       <RailButton
         onClick={() => onSetViewType('dtl')}

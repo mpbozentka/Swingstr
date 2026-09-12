@@ -35,6 +35,27 @@ export const POSE_POINT_INDICES = Object.freeze(Object.values(LANDMARK));
 
 export const VISIBILITY_THRESHOLD = 0.5;
 export const SKELETON_COLOR = '#38bdf8'; // sky-400 — pose-feature accent
+
+/**
+ * The skeleton is drawn in the colour of the engine that produced it, so you
+ * can tell at a glance which model you're looking at — the whole point of
+ * having two. Falls back to the MediaPipe colour for frames cached before
+ * engine stamping existed.
+ */
+export const SKELETON_ENGINE_COLORS = Object.freeze({
+  mediapipe: SKELETON_COLOR, // sky
+  rtmpose: '#fbbf24',        // amber-400
+});
+
+export function skeletonColorFor(engine) {
+  return SKELETON_ENGINE_COLORS[engine] ?? SKELETON_COLOR;
+}
+
+/** Same two colours as Tailwind classes + plain names, for the rail button. */
+export const SKELETON_ENGINE_UI = Object.freeze({
+  mediapipe: { dotClassName: 'bg-sky-400', colorName: 'blue' },
+  rtmpose: { dotClassName: 'bg-amber-400', colorName: 'amber' },
+});
 export const SKELETON_LINE_WIDTH = 2;
 export const SKELETON_POINT_RADIUS = 3;
 

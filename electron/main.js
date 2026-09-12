@@ -23,6 +23,8 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.wasm': 'application/wasm',
   '.task': 'application/octet-stream',
+  '.onnx': 'application/octet-stream',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.map': 'application/json',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',

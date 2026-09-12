@@ -17,14 +17,16 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "postinstall": "node scripts/setup-mediapipe.js",
+    "postinstall": "node scripts/setup-mediapipe.js && node scripts/setup-rtmpose.js",
     "setup-mediapipe": "node scripts/setup-mediapipe.js",
+    "setup-rtmpose": "node scripts/setup-rtmpose.js",
     "desktop": "electron .",
     "desktop:build": "npm run build && electron ."
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.35",
     "lucide-react": "^0.554.0",
+    "onnxruntime-web": "^1.29.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
