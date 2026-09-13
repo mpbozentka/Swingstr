@@ -45,6 +45,7 @@ export function getHandlesForShape(shape, zoomLevel) {
   const handles = [];
   switch (shape.type) {
     case 'line':
+    case 'vline':
       handles.push({ id: 'start', x: shape.start.x, y: shape.start.y, r });
       handles.push({ id: 'end', x: shape.end.x, y: shape.end.y, r });
       break;
@@ -99,6 +100,7 @@ export function hitTestHandle(pos, shape, zoomLevel) {
 export function hitTestShape(pos, shape, zoomLevel) {
   switch (shape.type) {
     case 'line':
+    case 'vline':
       return distToSegment(pos.x, pos.y, shape.start.x, shape.start.y, shape.end.x, shape.end.y) <= HIT_RADIUS / zoomLevel;
     case 'rect': {
       const x = shape.start.x;
@@ -154,6 +156,12 @@ export function updateShapeWithHandle(shape, handleId, newPos) {
     case 'line':
       if (handleId === 'start') next.start = { ...newPos };
       else if (handleId === 'end') next.end = { ...newPos };
+      break;
+    case 'vline':
+      // Either end changes its own height; sideways drags slide the whole
+      // line so it never tilts.
+      next.start = { x: newPos.x, y: handleId === 'start' ? newPos.y : shape.start.y };
+      next.end = { x: newPos.x, y: handleId === 'end' ? newPos.y : shape.end.y };
       break;
     case 'rect':
     case 'blur': {

@@ -542,6 +542,9 @@ const VideoCanvas = forwardRef(
         livePointsRef.current?.push(pos);
         // Bump a no-op state to trigger re-draw at most once per frame.
         setCurrentShape((prev) => prev && { ...prev });
+      } else if (tool === 'vline') {
+        // Locked to the starting x, so only the height follows the pointer.
+        setCurrentShape((prev) => ({ ...prev, end: { x: prev.start.x, y: pos.y } }));
       } else {
         setCurrentShape((prev) => ({ ...prev, end: pos }));
       }

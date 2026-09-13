@@ -1,6 +1,9 @@
 import React from 'react';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 
+// Dropdown value meaning "create a student from the name box".
+export const NEW_STUDENT = '__new__';
+
 export default function SaveModal({
   show,
   onClose,
@@ -33,12 +36,24 @@ export default function SaveModal({
             value={saveData.studentId}
           >
             <option value="">Select Student...</option>
+            <option value={NEW_STUDENT}>+ New student…</option>
             {students.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
             ))}
           </select>
+          {saveData.studentId === NEW_STUDENT && (
+            <input
+              autoFocus
+              className="w-full bg-gray-900 p-2 rounded border border-gray-600"
+              placeholder="New student's name"
+              value={saveData.newStudentName || ''}
+              onChange={(e) =>
+                setSaveData((prev) => ({ ...prev, newStudentName: e.target.value }))
+              }
+            />
+          )}
           <input
             className="w-full bg-gray-900 p-2 rounded border border-gray-600"
             placeholder="Label"

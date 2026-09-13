@@ -3,6 +3,7 @@ import StudentLibrary from './components/StudentLibrary';
 import AnalyzerView from './components/AnalyzerView';
 import Toast from './components/Toast';
 import UrlPromptModal from './components/UrlPromptModal';
+import { NEW_STUDENT } from './components/SaveModal';
 
 import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
@@ -34,7 +35,7 @@ export default function Swingstr() {
   useEffect(() => { globalTimeRef.current = globalTime; }, [globalTime]);
 
   const [students, setStudents] = useState(() => loadStudents());
-  const [saveData, setSaveData] = useState({ studentId: '', label: '' });
+  const [saveData, setSaveData] = useState({ studentId: '', label: '', newStudentName: '' });
   const [editingStudent, setEditingStudent] = useState(null);
 
   const [syncPoints, setSyncPoints] = useState({ left: null, right: null });
@@ -346,6 +347,9 @@ export default function Swingstr() {
 
   const saveToStudent = useCallback(async () => {
     if (!saveData.studentId || !saveData.label) return;
+    const isNewStudent = saveData.studentId === NEW_STUDENT;
+    const newStudentName = saveData.newStudentName?.trim();
+    if (isNewStudent && !newStudentName) return;
     const targetFile = activeScreen === 'left' ? leftFile : rightFile;
     const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
     const targetDriveFileId = activeScreen === 'left' ? leftDriveFileId : rightDriveFileId;
@@ -365,7 +369,9 @@ export default function Swingstr() {
       try {
         // The student's name and the clip label shape the on-disk path in the
         // desktop app, so the file is findable in Finder without the app.
-        const studentName = students.find((s) => s.id === saveData.studentId)?.name;
+        const studentName = isNewStudent
+          ? newStudentName
+          : students.find((s) => s.id === saveData.studentId)?.name;
         await saveVideoBlob(videoId, targetFile, { studentName, label: saveData.label });
       } catch (err) {
         console.warn('[saveToStudent] IndexedDB write failed', err);
@@ -374,15 +380,22 @@ export default function Swingstr() {
       }
     }
 
-    setStudents((prev) =>
-      prev.map((s) =>
-        s.id === saveData.studentId
-          ? { ...s, videos: [...(s.videos || []), record] }
-          : s
-      )
-    );
+    if (isNewStudent) {
+      setStudents((prev) => [
+        ...prev,
+        { id: newId(), name: newStudentName, email: '', phone: '', notes: '', videos: [record] },
+      ]);
+    } else {
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === saveData.studentId
+            ? { ...s, videos: [...(s.videos || []), record] }
+            : s
+        )
+      );
+    }
     setShowSaveModal(false);
-    setSaveData({ studentId: '', label: '' });
+    setSaveData({ studentId: '', label: '', newStudentName: '' });
     setToast({ message: 'Saved to student library.', kind: 'success' });
   }, [saveData, students, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 

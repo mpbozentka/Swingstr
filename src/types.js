@@ -20,12 +20,12 @@
  */
 
 /**
- * @typedef {'line' | 'rect' | 'circle' | 'blur' | 'free' | 'angle'} ShapeType
+ * @typedef {'line' | 'vline' | 'rect' | 'circle' | 'blur' | 'free' | 'angle'} ShapeType
  */
 
 /**
  * Discriminated union over shape types. Some fields are only present on
- * certain types — `start`/`end` for line/rect/circle/blur, `points` for free,
+ * certain types — `start`/`end` for line/vline/rect/circle/blur, `points` for free,
  * `p1`/`p2`/`p3` for angle.
  *
  * @typedef {Object} Shape

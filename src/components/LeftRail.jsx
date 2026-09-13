@@ -16,7 +16,7 @@ import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
 
-const DRAW_TOOLS = ['line', 'angle', 'circle', 'rect', 'free', 'blur', 'select'];
+const DRAW_TOOLS = ['line', 'vline', 'angle', 'circle', 'rect', 'free', 'blur', 'select'];
 
 /**
  * Renders a rail flyout at the document root, pinned to its button.

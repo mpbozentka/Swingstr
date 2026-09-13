@@ -20,6 +20,7 @@ export function renderShape(ctx, shape, { zoomLevel, video, videoRect, blurPx = 
 
   switch (shape.type) {
     case 'line':
+    case 'vline':
       ctx.moveTo(shape.start.x, shape.start.y);
       ctx.lineTo(shape.end.x, shape.end.y);
       ctx.stroke();

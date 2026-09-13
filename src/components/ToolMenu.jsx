@@ -28,6 +28,13 @@ export default function ToolMenu({ tool, setTool, onClose, positionClass = 'abso
           <Minus size={18} className="rotate-45" />
         </IconButton>
         <IconButton
+          onClick={() => setAndClose('vline')}
+          active={tool === 'vline'}
+          title="Vertical line"
+        >
+          <Minus size={18} className="rotate-90" />
+        </IconButton>
+        <IconButton
           onClick={() => setAndClose('angle')}
           active={tool === 'angle'}
           title="Angle"
