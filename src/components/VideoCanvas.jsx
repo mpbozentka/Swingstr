@@ -37,6 +37,7 @@ const VideoCanvas = forwardRef(
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
 
+    const [isDragOver, setIsDragOver] = useState(false);
     const [panX, setPanX] = useState(0);
     const [panY, setPanY] = useState(0);
     const isPanning = useRef(false);
@@ -575,12 +576,50 @@ const VideoCanvas = forwardRef(
       }
     };
 
+    // Drag-and-drop a video file straight onto this pane. Reuses the same
+    // upload path as the file picker, so a drop behaves exactly like choosing it.
+    const isFileDrag = (e) => e.dataTransfer?.types?.includes('Files');
+
+    const handleDragOver = (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!isDragOver) setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e) => {
+      // Ignore leave events fired when moving between child elements.
+      if (e.currentTarget.contains(e.relatedTarget)) return;
+      setIsDragOver(false);
+    };
+
+    const handleDrop = (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      setIsDragOver(false);
+      const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith('video/'));
+      if (!file) {
+        console.warn('Dropped file is not a video:', e.dataTransfer.files[0]?.name);
+        return;
+      }
+      onActivate?.();
+      onUpload({ target: { files: [file] } });
+    };
+
     return (
       <div
         ref={containerRef}
         className={`relative w-full h-full flex flex-col items-center justify-center overflow-hidden bg-black ${isActive ? 'ring-2 ring-purple-500 z-10' : 'border-r border-gray-800'
           }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        {isDragOver && (
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-purple-500/20 border-4 border-dashed border-purple-400 pointer-events-none">
+            <p className="text-lg font-medium text-white">Drop video here</p>
+          </div>
+        )}
         <div
           className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair"
           style={{ touchAction: 'none' }}
@@ -595,6 +634,7 @@ const VideoCanvas = forwardRef(
               <label className="cursor-pointer hover:text-purple-400 transition-colors flex flex-col items-center">
                 <Upload size={48} className="mb-2 opacity-50" />
                 <p className="text-lg font-medium">Upload File</p>
+                <p className="text-sm opacity-60">or drag a video here</p>
                 <input
                   type="file"
                   accept="video/*"

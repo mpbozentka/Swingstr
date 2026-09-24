@@ -138,9 +138,10 @@ export default function AnalyzerView({
 
     const rect = el.getBoundingClientRect(); // already includes the transform
     const unscaledWidth = rect.width / barScale;
-    const anchorRight = rect.right;
+    const centerX = rect.left + rect.width / 2;
 
-    const onMove = (ev) => setBarScale(clampBarScale((anchorRight - ev.clientX) / unscaledWidth));
+    // Bar shrinks toward its center, so the grip sits half the scaled width left of center.
+    const onMove = (ev) => setBarScale(clampBarScale((2 * (centerX - ev.clientX)) / unscaledWidth));
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -372,14 +373,14 @@ export default function AnalyzerView({
           onSave={openSaveModal}
         />
 
-        {/* Scrubber and transport, floating on glass over the footage. Left
-            inset clears the tool rail. Scaled from the bottom-right corner so
-            the drag grip on the left edge shrinks the whole thing toward the
-            corner it's pinned to. */}
+        {/* Scrubber and transport, floating on glass over the footage, pinned
+            to the very bottom and centered on screen. Equal side insets clear
+            the tool rail. Scaled from the bottom center so the drag grip on
+            the left edge shrinks it evenly from both sides. */}
         <div
           ref={barRef}
-          className="footer-mobile-safe absolute bottom-4 left-20 right-4 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
-          style={{ transform: `scale(${barScale})`, transformOrigin: 'bottom right' }}
+          className="footer-mobile-safe absolute bottom-1 left-20 right-20 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
+          style={{ transform: `scale(${barScale})`, transformOrigin: 'bottom center' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Resize grip. Counter-scaled so it stays the same grabbable size
