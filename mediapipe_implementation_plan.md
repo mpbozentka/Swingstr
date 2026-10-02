@@ -1,5 +1,63 @@
 # MediaPipe Pose Analysis — Implementation Spec
 
+**Current source note, 2026-10-01:** HEAD `b2338c6` did not contain the pose
+pipeline described as shipped below. The `codex/swing-coach-practice` branch
+now adds a local body overlay and a manual-checkpoint head-position preview.
+See README's "Practice focus preview" for its actual behavior and limits.
+The older phase status below is historical, not verification of this checkout.
+
+## Requested measurement roadmap (2026-10-01)
+
+Mitchell supplied this eventual measurement list in a Swing Coach screenshot.
+These are requested categories, not claims of implemented or validated metrics.
+Preserve the grouping below. Define each metric before implementing it rather
+than assuming the competitor's formula from its label.
+
+| Setup posture | Down the line | Face on |
+| --- | --- | --- |
+| Alignment | Swing plane | Shaft lean |
+| Hip bend | Spine stability | Club release |
+| Hip depth | Head | Spine tilt |
+| Knee bend | Hip depth | Lead shoulder |
+| Hands (first entry) | Flying elbow | Lead hip |
+| Chest | Trail knee bend | Head |
+| Hands (second entry) | | Lead knee |
+| Stance width | | Trail knee |
+
+The screenshot lists **Hands twice under Setup posture**. Keep both entries
+unresolved until Mitchell specifies whether they represent different hand
+measurements. Do not silently rename one. Chest, alignment, flying elbow,
+club release, lead shoulder, lead hip, and the knee categories also need
+precise definitions before they become calculations or coaching feedback.
+
+For each category, agree on: the component and reference being measured;
+camera view and framing; swing checkpoint or interval; units and sign
+convention; detection-confidence requirements; and the coach-selected target.
+Separate an observed movement from a judgment that it needs changing.
+
+### Current coverage and proposed sequence
+
+- **Current preview:** screen-horizontal or vertical head-center displacement
+  between manually marked P1 and one later checkpoint, normalized by the
+  shoulder-to-hip distance at P1. This is partial coverage of the Head
+  categories. It does not complete either category or validate accuracy.
+- **Next body measurements, proposed:** knee bend, spine tilt, stance width,
+  and a defined setup hip-bend measurement. Validate each on known clips and
+  the required camera view before adding spoken judgments.
+- **Then movement across checkpoints, proposed:** the defined head, hip,
+  spine-stability, elbow, shoulder, and knee measurements. Do not substitute
+  a 2D landmark movement for an unspecified 3D rotation or physical distance.
+- **Club measurements:** shaft lean, club release, and any club-based swing
+  plane definition require a separate club/shaft tracking implementation.
+  The current pipeline only returns body landmarks.
+- **Remaining setup categories:** define alignment, hip depth, both Hands
+  entries, and Chest with Mitchell before choosing their implementation.
+
+This is the intended measurement scope. It does not authorize implementing
+all categories in one session or supersede the manual-testing gate below.
+
+---
+
 Research + phased implementation spec for adding computer-vision swing
 analysis to Swingstr. Written 2026-07-10, updated after Phase 0 shipped.
 

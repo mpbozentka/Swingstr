@@ -114,6 +114,44 @@ Swingstr/
 └── package.json
 ```
 
+## Practice focus preview
+
+Competitor feature evidence and timestamped YouTube demos are documented in
+[`swing_coach_research.md`](swing_coach_research.md).
+
+The first Swing Coach-inspired practice flow measures visible head movement
+between P1 and a checkpoint you mark. It uses MediaPipe locally and does not
+upload the clip or its pose data. This is a 2D estimate for review, not a
+validated biomechanical measurement.
+
+1. Run `npm install`, then `npm run dev`. Installation copies the pose runtime
+   and downloads Google's full pose model once. If assets are missing, run
+   `npm run setup:pose`. After setup, analysis needs no network connection.
+2. Upload a clear full-body swing. Trim clips longer than 30 seconds.
+3. Open **Practice focus** and click **Analyze clip**. Analysis pauses both
+   videos and temporarily locks replay controls. Cancel restores the frame.
+4. Scrub to address and set P1. Select a checkpoint, scrub to that position,
+   and set its marker. Confirm that the white head ring follows the golfer.
+5. Choose horizontal or vertical movement and enter your lower and upper
+   limits. Units are percent of the shoulder-to-hip length at P1, measured
+   in image pixels. Horizontal signs mean screen left/right, vertical signs
+   mean down/up. These are coach-selected limits, not universal swing ideals.
+6. Review the checkpoint or select **Hear feedback** for system speech.
+
+Targets reset when switching videos; analysis is cached only for the current
+session. Camera capture, automatic swing positions, club tracking, drill
+recommendations, and saved progress reports are not implemented yet.
+Body estimates can be wrong even when confidence is high. Test several known
+swings and camera views before relying on the result for coaching.
+Replay and measurements use a centered five-frame blend to reduce detection
+jitter. It keeps raw confidence, leaves missing detections unavailable, and
+does not blend across detection gaps.
+Points and lines fade near the confidence cutoff instead of switching on
+at full opacity.
+
+Run `npm test` for measurement and detection-gap checks, `npm run build` for
+the production bundle, and `npm run desktop:build` to try the desktop version.
+
 ## 🔮 Roadmap
 
 - Desktop app (Electron) for unlimited local storage.

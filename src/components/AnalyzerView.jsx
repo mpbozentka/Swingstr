@@ -13,6 +13,7 @@ import {
   Users,
   Crosshair,
   Check,
+  Activity,
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import ScreenPane from './ScreenPane';
@@ -22,6 +23,7 @@ import Timeline from './Timeline';
 import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
+import PracticePanel from './PracticePanel';
 
 // The floating control bar is sized by a single scale factor rather than an
 // explicit width/height, so the buttons, text and scrub track all shrink
@@ -45,6 +47,7 @@ function readBarScale() {
 
 export default function AnalyzerView({
   onOpenLibrary,
+  pose,
   layout,
   setLayout,
   sync,
@@ -111,6 +114,8 @@ export default function AnalyzerView({
   onSignOut,
   onDriveLoad,
 }) {
+  const [practiceOpen, setPracticeOpen] = useState(false);
+  const [overlays, setOverlays] = useState({ left: true, right: true });
   const [drivePickerSide, setDrivePickerSide] = React.useState(null);
 
   const [barScale, setBarScale] = useState(readBarScale);
@@ -187,7 +192,7 @@ export default function AnalyzerView({
         playbackSpeed={speed}
       />
 
-      <header className="h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
+      <header inert={!!pose.running} className={`h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20 ${pose.running ? 'opacity-60' : ''}`}>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <img
@@ -210,6 +215,7 @@ export default function AnalyzerView({
           </button>
         </div>
         <div className="flex items-center gap-4">
+          <button onClick={() => setPracticeOpen(!practiceOpen)} aria-pressed={practiceOpen} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${practiceOpen ? 'bg-sky-950 text-sky-300 border-sky-600/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}><Activity size={14} />Practice focus</button>
           <div className="flex bg-gray-800 rounded-lg p-1">
             <button
               onClick={() => {
@@ -300,8 +306,8 @@ export default function AnalyzerView({
 
       {/* Everything below the header. The video fills the region; the tool
           rail and the transport bar float on glass over it. */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-      <main className="flex-1 flex overflow-hidden bg-black relative">
+      <div className="flex-1 flex overflow-hidden min-w-0">
+      <main inert={!!pose.running} className="flex-1 min-w-0 flex overflow-hidden bg-black relative">
         <ScreenPane
           side="left"
           layout={layout}
@@ -325,6 +331,8 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
+          poseFrames={pose.left.frames}
+          showSkeleton={overlays.left}
         />
 
         {layout === 'split' && (
@@ -352,6 +360,8 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
+            poseFrames={pose.right.frames}
+            showSkeleton={overlays.right}
           />
         )}
         <LeftRail
@@ -447,8 +457,23 @@ export default function AnalyzerView({
             </button>
           </div>
         </div>
+        {pose.running && <div className="absolute inset-0 z-[70] bg-black/20 cursor-wait" aria-label="Video controls paused during analysis" />}
       </main>
-
+      <PracticePanel
+        key={`${activeScreen}:${activeScreen === 'left' ? leftVideo : rightVideo}`}
+        open={practiceOpen}
+        analysis={pose[activeScreen]}
+        busy={!!pose.running}
+        hasVideo={!!(activeScreen === 'left' ? leftVideo : rightVideo)}
+        markers={markers[activeScreen]}
+        onAnalyze={() => pose.analyze(activeScreen)}
+        onCancel={pose.cancel}
+        onSetMarker={(index) => onSetMarker(index, (activeScreen === 'left' ? leftRef : rightRef).current?.currentTime ?? globalTime)}
+        onJumpToMarker={onJumpToMarker}
+        onClose={() => { if (!pose.running) setPracticeOpen(false); }}
+        showOverlay={overlays[activeScreen]}
+        onOverlayChange={(value) => setOverlays((prev) => ({ ...prev, [activeScreen]: value }))}
+      />
       </div>
     </div>
   );

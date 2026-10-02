@@ -1,0 +1,11 @@
+.git/
+.claude/
+node_modules/
+Swingstr Library/
+**/students.json
+**/*.[mM][pP]4
+**/*.[mM][oO][vV]
+**/*.[mM]4[vV]
+**/*.[wW][eE][bB][mM]
+**/*.[mM][kK][vV]
+**/*.[aA][vV][iI]

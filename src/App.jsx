@@ -9,6 +9,7 @@ import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob } from './util
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
+import { usePoseAnalysis } from './hooks/usePoseAnalysis';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useGoogleDrive } from './hooks/useGoogleDrive';
 
@@ -127,6 +128,8 @@ export default function Swingstr() {
   // left and right can hold different swings each with their own positions.
   useEffect(() => { clearMarkers('left'); }, [leftVideo, clearMarkers]);
   useEffect(() => { clearMarkers('right'); }, [rightVideo, clearMarkers]);
+
+  const pose = usePoseAnalysis({ leftRef, rightRef, leftVideo, rightVideo, trims, onToast: setToast });
 
   // Debounced — every keystroke in a student's notes textarea would otherwise
   // serialize the whole CRM (#21).
@@ -425,7 +428,7 @@ export default function Swingstr() {
       !!el && (el.matches?.(':where(input, textarea, select, [contenteditable=""], [contenteditable="true"])') ?? false);
 
     const handleKeyDown = (e) => {
-      if (isTextish(document.activeElement)) return;
+      if (pose.running || isTextish(document.activeElement)) return;
       if (e.code === 'KeyP') {
         pHeldRef.current = true; // a lone P does nothing on its own — no preventDefault
         return;
@@ -474,7 +477,7 @@ export default function Swingstr() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay, setMarkerLinked, goToMarker, stepMarker, activeScreen, globalTime]);
+  }, [seek, togglePlay, setMarkerLinked, goToMarker, stepMarker, activeScreen, globalTime, pose.running]);
 
   const toastEl = (
     <Toast
@@ -507,7 +510,8 @@ export default function Swingstr() {
   return (
     <>
     <AnalyzerView
-      onOpenLibrary={() => setView('library')}
+      onOpenLibrary={() => { pose.cancel(); setView('library'); }}
+      pose={pose}
       layout={layout}
       setLayout={setLayout}
       sync={sync}

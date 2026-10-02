@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
+import { drawPose, samplePose } from '../utils/practiceMetrics';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
@@ -30,6 +31,8 @@ const VideoCanvas = forwardRef(
       onPlayStateChange,
       trimStart,
       trimEnd,
+      poseFrames,
+      showSkeleton,
     },
     ref
   ) => {
@@ -362,6 +365,8 @@ const VideoCanvas = forwardRef(
       ctx.scale(zoomLevel, zoomLevel);
       ctx.translate(-centerX, -centerY);
 
+      if (showSkeleton) drawPose(ctx, samplePose(poseFrames, vid?.currentTime ?? 0), videoRect, zoomLevel);
+
       shapes.forEach((shape) =>
         renderShape(ctx, shape, {
           zoomLevel,
@@ -398,12 +403,19 @@ const VideoCanvas = forwardRef(
         });
       }
       ctx.restore();
-    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex]);
+    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex, poseFrames, showSkeleton]);
 
     useEffect(() => {
-      const anim = requestAnimationFrame(draw);
-      return () => cancelAnimationFrame(anim);
-    }, [draw]);
+      let anim;
+      const tick = () => {
+        draw();
+        if (showSkeleton && poseFrames?.length) anim = requestAnimationFrame(tick);
+      };
+      anim = requestAnimationFrame(tick);
+      const observer = new ResizeObserver(draw);
+      if (containerRef.current) observer.observe(containerRef.current);
+      return () => { cancelAnimationFrame(anim); observer.disconnect(); };
+    }, [draw, showSkeleton, poseFrames]);
 
     const getEventCoords = (e) => {
       if (e.touches?.[0]) {

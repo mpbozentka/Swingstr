@@ -4,3 +4,15 @@ build
 .DS_Store
 .env
 electron/AppIcon.icns
+
+public/mediapipe/
+
+# Saved swings and private library data stay on the user's device.
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[mM]4[vV]
+*.[wW][eE][bB][mM]
+*.[mM][kK][vV]
+*.[aA][vV][iI]
+Swingstr Library/
+students.json
