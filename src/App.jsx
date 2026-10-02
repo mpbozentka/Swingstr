@@ -5,7 +5,7 @@ import Toast from './components/Toast';
 import UrlPromptModal from './components/UrlPromptModal';
 import { NEW_STUDENT } from './components/SaveModal';
 
-import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob } from './utils/storage';
+import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob, videoSavingEnabled } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
@@ -349,6 +349,7 @@ export default function Swingstr() {
   }, [scrubTo]);
 
   const saveToStudent = useCallback(async () => {
+    if (!videoSavingEnabled()) return;
     if (!saveData.studentId || !saveData.label) return;
     const isNewStudent = saveData.studentId === NEW_STUDENT;
     const newStudentName = saveData.newStudentName?.trim();
@@ -361,7 +362,7 @@ export default function Swingstr() {
     const videoId = newId();
     const baseRecord = { id: videoId, label: saveData.label, date: new Date().toLocaleDateString() };
     // Drive videos store only the file ID — re-fetched from Drive on demand.
-    // Local uploads go to IndexedDB. Remote URLs stored as-is.
+    // Local uploads go to the desktop library. Remote URLs stored as-is.
     const record = targetDriveFileId
       ? { ...baseRecord, driveFileId: targetDriveFileId, source: 'drive' }
       : targetFile
@@ -377,7 +378,7 @@ export default function Swingstr() {
           : students.find((s) => s.id === saveData.studentId)?.name;
         await saveVideoBlob(videoId, targetFile, { studentName, label: saveData.label });
       } catch (err) {
-        console.warn('[saveToStudent] IndexedDB write failed', err);
+        console.warn('[saveToStudent] desktop library write failed', err);
         setToast({ message: "Couldn't save the video.", kind: 'error' });
         return;
       }
@@ -487,7 +488,7 @@ export default function Swingstr() {
     />
   );
 
-  if (view === 'library') {
+  if (view === 'library' && videoSavingEnabled()) {
     return (
       <>
         <StudentLibrary
@@ -541,7 +542,7 @@ export default function Swingstr() {
       togglePlay={togglePlay}
       seek={seek}
       clearShapes={clearShapes}
-      openSaveModal={() => setShowSaveModal(true)}
+      openSaveModal={() => { if (videoSavingEnabled()) setShowSaveModal(true); }}
       globalTime={globalTime}
       globalDuration={globalDuration}
       onGlobalScrub={handleGlobalScrub}

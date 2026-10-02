@@ -24,6 +24,7 @@ import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
 import PracticePanel from './PracticePanel';
+import { videoSavingEnabled } from '../utils/storage';
 
 // The floating control bar is sized by a single scale factor rather than an
 // explicit width/height, so the buttons, text and scrub track all shrink
@@ -171,7 +172,7 @@ export default function AnalyzerView({
       />
 
       <SaveModal
-        show={showSaveModal}
+        show={showSaveModal && videoSavingEnabled()}
         onClose={() => setShowSaveModal(false)}
         students={students}
         saveData={saveData}
@@ -207,12 +208,12 @@ export default function AnalyzerView({
               Swing<span className="text-purple-500">str</span>
             </h1>
           </div>
-          <button
+          {videoSavingEnabled() && <button
             onClick={onOpenLibrary}
             className="text-xs bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 flex items-center gap-1 border border-gray-700"
           >
             <Users size={12} /> Student Library
-          </button>
+          </button>}
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setPracticeOpen(!practiceOpen)} aria-pressed={practiceOpen} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${practiceOpen ? 'bg-sky-950 text-sky-300 border-sky-600/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}><Activity size={14} />Practice focus</button>

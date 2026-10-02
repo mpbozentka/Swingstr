@@ -15,6 +15,7 @@ import {
 import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
 import SpeedMenu from './SpeedMenu';
+import { videoSavingEnabled } from '../utils/storage';
 
 const DRAW_TOOLS = ['line', 'vline', 'angle', 'circle', 'rect', 'free', 'blur', 'select'];
 
@@ -252,8 +253,9 @@ export default function LeftRail({
 
       <RailButton
         onClick={onSave}
-        title="Save to student"
-        aria-label="Save to student"
+        disabled={!videoSavingEnabled()}
+        title={videoSavingEnabled() ? 'Save to student' : 'Video saving is available only in the desktop app'}
+        aria-label={videoSavingEnabled() ? 'Save to student' : 'Video saving disabled on website'}
         className="text-purple-300 hover:text-purple-100"
       >
         <Save size={18} />

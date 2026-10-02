@@ -2,11 +2,8 @@
  * Persistence layer for Swingstr.
  *
  * Browser:
- *   - localStorage: small, structured metadata (students, video records).
- *     Versioned so we can migrate the shape over time without crashing on load.
- *   - IndexedDB:    raw video Blobs. Blob URLs are tied to document lifetime,
- *     so a URL stored in localStorage is a dead pointer after refresh. We keep
- *     the actual Blob in IDB and reconstruct an object URL on demand.
+ *   - Videos are loaded temporarily for analysis. Library saving is disabled.
+ *   - Existing browser library data is left untouched.
  *
  * Desktop app:
  *   - ~/Documents/Swingstr Library/students.json
@@ -15,6 +12,11 @@
 
 function desktopApi() {
   return typeof window !== 'undefined' ? window.swingstrDesktop : null
+}
+
+export function videoSavingEnabled() {
+  const desktop = desktopApi();
+  return Boolean(desktop?.enabled && desktop?.saveVideo && desktop?.saveStudents);
 }
 
 function extForBlob(blob) {
@@ -67,16 +69,6 @@ function openDB() {
   return dbPromise;
 }
 
-async function idbPut(key, blob) {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).put(blob, key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
 async function idbGet(key) {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -99,17 +91,15 @@ async function idbDelete(key) {
 
 /**
  * `meta` ({ studentName, label }) only shapes where the desktop app files the
- * video on disk — the app still finds it by id either way. The browser has no
- * folders to file it in, so IndexedDB ignores it.
+ * video on disk. The website cannot save videos to a library.
  */
 export async function saveVideoBlob(videoId, blob, meta) {
-  const desktop = desktopApi();
-  if (desktop?.saveVideo) {
-    const buffer = await blob.arrayBuffer();
-    await desktop.saveVideo(videoId, buffer, extForBlob(blob), meta);
-    return;
+  if (!videoSavingEnabled()) {
+    throw new Error('Video saving is available only in the desktop app.');
   }
-  await idbPut(videoId, blob);
+  const desktop = desktopApi();
+  const buffer = await blob.arrayBuffer();
+  await desktop.saveVideo(videoId, buffer, extForBlob(blob), meta);
 }
 
 export async function loadVideoBlob(videoId) {
@@ -158,6 +148,7 @@ function migrate(parsed) {
 }
 
 export function loadStudents() {
+  if (!videoSavingEnabled()) return DEFAULT_STUDENTS;
   const desktop = desktopApi();
   if (desktop?.loadStudents) {
     try {
@@ -180,6 +171,7 @@ export function loadStudents() {
 }
 
 export function saveStudents(students) {
+  if (!videoSavingEnabled()) return;
   const payload = { version: SCHEMA_VERSION, students };
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(payload));

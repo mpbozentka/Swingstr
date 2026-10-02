@@ -33,3 +33,10 @@ control and deployment uploads. Verify the production bundle contains no
 saved clips. Browser storage and the desktop's local Swingstr Library are
 device data, not deployment inputs; do not erase that library as a deployment
 cleanup step.
+
+The deployed website must not save videos or video links to a student library,
+including browser IndexedDB and localStorage. Keep library saving available
+only through the desktop app's native storage API. Guard the storage functions
+as well as the Save control, hide the website's student library, and preserve
+existing device data. Temporary analysis and user-initiated exports remain
+available on the website.
