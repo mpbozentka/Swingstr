@@ -1,14 +1,6 @@
 import React from 'react';
 
-const STROKE_COLORS = [
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#3b82f6',
-  '#a855f7',
-  '#ffffff',
-];
+const STROKE_COLORS = ['#155e75', '#9a3412', '#854d0e'];
 
 export default function StyleMenu({ color, setColor, lineWidth, setLineWidth, positionClass = 'absolute bottom-16 left-32' }) {
   return (
@@ -31,6 +23,7 @@ export default function StyleMenu({ color, setColor, lineWidth, setLineWidth, po
           />
         ))}
       </div>
+      <input aria-label="Custom stroke color" type="color" value={color} onChange={(e) => setColor(e.target.value)} />
       <div className="text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">
         Thickness
       </div>

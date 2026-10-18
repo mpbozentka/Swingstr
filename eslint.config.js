@@ -5,9 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  // public/mediapipe/wasm holds vendored, unminified WASM glue code copied
-  // from node_modules by scripts/setup-mediapipe.js — not our source.
-  globalIgnores(['dist', 'public/mediapipe']),
+  globalIgnores(['dist']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

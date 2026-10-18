@@ -29,6 +29,13 @@
  * `p1`/`p2`/`p3` for angle.
  *
  * @typedef {Object} Shape
+ * Coordinates are normalized to source video content; render/edit adapters
+ * map them into the current letterbox. Width remains a display/export style.
+ * @property {string} id - Stable source-session annotation ID
+ * @property {string} sourceId
+ * @property {'source'} coordinates
+ * @property {{kind:'all'}|{kind:'frame',mediaTime:number}|{kind:'range',start:number,end:number}|{kind:'positions',from:number,to:number}} visibility - Source timing; internal position indices 0..9
+ * @property {boolean} showAngleLabel - Numeric label off unless explicitly true
  * @property {ShapeType} type
  * @property {string} color
  * @property {number} width

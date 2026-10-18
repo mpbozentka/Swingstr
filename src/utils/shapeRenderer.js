@@ -92,7 +92,7 @@ export function renderShape(ctx, shape, { zoomLevel, video, videoRect, blurPx = 
         ctx.lineTo(shape.p3.x, shape.p3.y);
       }
       ctx.stroke();
-      if (shape.p2 && shape.p3) {
+      if (shape.showAngleLabel === true && shape.p2 && shape.p3) {
         const ang = calculateAngle(shape.p1, shape.p2, shape.p3);
         ctx.font = `bold ${14 / zoomLevel}px sans-serif`;
         ctx.fillStyle = 'rgba(0,0,0,0.7)';

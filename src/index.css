@@ -8,11 +8,149 @@ body {
   color: white;
 }
 
-/* Lift the floating control bar above mobile browser UI (address bar, nav).
-   It's an absolutely-positioned element, so this shifts it up rather than
-   padding it out into a taller panel. */
-@media (max-width: 768px) {
-  .footer-mobile-safe {
-    margin-bottom: max(env(safe-area-inset-bottom, 0px), 64px) !important;
+/* Header groups keep the existing desktop spacing. */
+.analyzer-header-options {
+  display: contents;
+}
+
+/* Phones use controls below the footage, including when rotated. */
+@media (max-width: 767px), (max-width: 1023px) and (max-height: 500px) {
+  .analyzer-shell {
+    height: 100dvh;
+    overflow: hidden;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
   }
+
+  .analyzer-header {
+    height: 56px;
+    position: relative;
+    padding-inline: 12px;
+    z-index: 80;
+  }
+
+  .mobile-header-toggle { display: flex; min-height: 44px; }
+  .analyzer-header > div:first-child { min-width: 0; gap: 8px; }
+  .analyzer-header > div:first-child > div { gap: 8px; }
+  .analyzer-header h1 { font-size: 16px; }
+  .analyzer-header > div:first-child > button { font-size: 0; padding: 8px; }
+  .analyzer-header > div:first-child > button svg { width: 20px; height: 20px; }
+
+  .analyzer-header-options { display: none; }
+  .analyzer-header-options.is-open {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    max-height: 65dvh;
+    overflow-y: auto;
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 12px;
+    box-shadow: 0 12px 24px #0008;
+  }
+  .analyzer-header-options > div { flex-wrap: wrap; gap: 8px; }
+  .analyzer-header-options button { min-height: 44px; min-width: 44px; }
+  .analyzer-header-options span { overflow-wrap: anywhere; }
+  .editing-tools-panel { max-height: 25dvh; overflow-y: auto; }
+  .editing-tools-panel button, .editing-tools-panel input, .editing-tools-panel select { min-height: 44px; }
+
+  .analysis-workspace { flex-direction: column; }
+  .analyzer-main { flex-direction: column; }
+  .analysis-panes { overflow: hidden; }
+  .analysis-rail {
+    position: relative;
+    inset: auto;
+    transform: none;
+    flex-direction: row;
+    flex-shrink: 0;
+    width: 100%;
+    max-height: none;
+    min-height: 56px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 0;
+    background: #111827;
+  }
+  .analysis-rail > * { flex-shrink: 0; }
+  .analysis-rail > .h-px { width: 1px; height: 28px; margin: 0 4px; }
+  .rail-button { height: 44px; }
+  .analyzer-shell[data-editing-open=false] .analysis-rail > button[aria-label^="Set trim"],
+  .analyzer-shell[data-editing-open=false] .analysis-rail > button[aria-label="Clear trim"],
+  .analysis-rail button[aria-label="Video saving disabled on website"] { display: none; }
+  .active-pane-badge { top: auto; bottom: 12px; }
+  .rail-flyout { max-height: calc(100dvh - 16px); overflow-y: auto; }
+  .rail-flyout button { min-height: 44px; min-width: 36px; }
+
+  .analysis-transport {
+    position: relative;
+    inset: auto;
+    flex-shrink: 0;
+    transform: none !important;
+    margin: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-radius: 0;
+    background: #111827;
+  }
+  .transport-resize { display: none; }
+  .analysis-timeline {
+    display: grid;
+    grid-template-columns: 44px 1fr 1fr 44px 48px;
+    gap: 0 4px;
+    padding: 0 12px;
+  }
+  .timeline-track { grid-column: 1 / -1; order: -1; height: 36px; }
+  .timeline-track input { height: 36px; background: transparent; }
+  .timeline-track input::-webkit-slider-runnable-track { height: 6px; background: #ffffff40; border-radius: 3px; }
+  .timeline-track input::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; margin-top: -7px; border-radius: 50%; background: #c084fc; }
+  .timeline-track input::-moz-range-track { height: 6px; background: #ffffff40; border-radius: 3px; }
+  .timeline-track input::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #c084fc; }
+  .analysis-timeline > button, .bookmark-control > button { min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; }
+  .analysis-timeline > span { width: auto; }
+  .analysis-timeline > span:nth-of-type(2) { text-align: right; }
+  .timeline-legend { display: none; }
+  .timeline-marker { min-width: 24px; min-height: 24px; display: flex; align-items: center; justify-content: center; }
+  .bookmark-slots { max-height: min(240px, 42dvh); }
+  .bookmark-slots button { min-height: 44px; }
+  .bookmark-slots button:has(svg) { min-width: 44px; opacity: 1; }
+  .transport-buttons { gap: 24px; padding-bottom: 4px; }
+  .transport-buttons button { width: 44px; height: 44px; }
+
+  .export-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .export-header { padding: 8px; gap: 4px; }
+  .export-header > div { gap: 4px; min-width: 0; }
+  .export-header > div > div:first-child > svg { display: none; }
+  .export-header button { min-height: 44px; padding-inline: 8px; }
+  .export-header button[aria-label=Close] { min-width: 44px; }
+  .export-header h2 { font-size: 16px; }
+  .export-content { flex-direction: column; overflow-y: auto; }
+  .sequence-settings { width: 100%; overflow: visible; border-right: 0; }
+  .sequence-preview { flex: none; width: 100%; min-height: 180px; overflow: visible; }
+  .export-content button, .export-content select, .export-content input:not([type=checkbox]):not([type=range]) { min-height: 44px; }
+  .export-content input:not([type=checkbox]):not([type=range]), .export-content select { font-size: 16px; }
+  .video-export { flex-direction: column; overflow: visible; }
+  .video-export-settings { width: 100%; max-height: none; overflow: visible; padding-right: 0; }
+  .video-export-preview { flex: none; width: 100%; overflow-wrap: anywhere; }
+  .video-export-preview canvas, .video-export-preview video { display: block; width: 100%; max-height: 45dvh; }
+}
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .screen-pane[data-layout=split] { width: 100%; }
+  .screen-pane[data-layout=split][data-active=false] { display: none; }
+  .mobile-pane-switch { display: flex; flex-shrink: 0; gap: 4px; padding: 4px 8px; background: #111827; }
+  .mobile-pane-switch button { flex: 1; min-height: 44px; border-radius: 8px; font-size: 14px; }
+}
+
+@media (max-width: 1023px) and (orientation: landscape) and (max-height: 500px) {
+  .analysis-workspace { flex-direction: row; }
+  .analysis-transport { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .analysis-timeline { display: flex; flex: 1 1 400px; min-width: 0; }
+  .timeline-track { order: 0; }
+  .analysis-timeline > span { width: 40px; }
+  .analysis-timeline > button, .bookmark-control { width: 44px; flex-shrink: 0; }
+  .transport-buttons { flex-shrink: 0; gap: 8px; padding: 4px 8px; margin-inline: auto; }
 }

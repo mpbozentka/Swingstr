@@ -43,19 +43,20 @@ function RailFlyout({ anchorRef, children }) {
       const box = boxRef.current;
       if (!anchor || !box) return;
       const r = anchor.getBoundingClientRect();
+      const horizontal = getComputedStyle(anchor.closest('aside')).flexDirection === 'row';
       setPos({
-        left: r.right + 8,
-        // Keep tall menus (the tool grid) fully on screen near the bottom.
-        top: Math.max(8, Math.min(r.top, window.innerHeight - box.offsetHeight - 8)),
+        left: Math.max(8, Math.min(horizontal ? r.left : r.right + 8, window.innerWidth - box.offsetWidth - 8)),
+        top: Math.max(8, Math.min(horizontal ? r.top - box.offsetHeight - 8 : r.top, window.innerHeight - box.offsetHeight - 8)),
       });
     };
     place();
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
   }, [anchorRef]);
 
   return createPortal(
-    <div ref={boxRef} className="fixed z-50" style={{ left: pos.left, top: pos.top }}>
+    <div ref={boxRef} className="rail-flyout fixed z-50" style={{ left: pos.left, top: pos.top }}>
       {children}
     </div>,
     document.body,
@@ -75,7 +76,7 @@ function RailButton({ active, className = '', children, ...rest }) {
     <button
       {...rest}
       aria-pressed={active}
-      className={`w-11 h-9 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors border backdrop-blur-sm ${
+      className={`rail-button shrink-0 w-11 h-9 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors border backdrop-blur-sm ${
         active
           ? 'bg-purple-500/80 text-white border-purple-300/40 shadow-lg shadow-purple-900/40'
           : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/15 hover:text-white'
@@ -117,7 +118,8 @@ export default function LeftRail({
 
   return (
     <aside
-      className="absolute left-3 top-1/2 -translate-y-1/2 max-h-[calc(100%-1.5rem)] w-14 flex flex-col items-center gap-1 py-2 overflow-y-auto z-40 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50"
+      aria-label="Video tools"
+      className="analysis-rail absolute left-3 top-1/2 -translate-y-1/2 max-h-[calc(100%-1.5rem)] w-14 flex flex-col items-center gap-1 py-2 overflow-y-auto z-40 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50"
       onClick={(e) => e.stopPropagation()}
     >
       <RailButton

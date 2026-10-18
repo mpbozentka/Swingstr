@@ -2,6 +2,19 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('swingstrDesktop', {
   enabled: true,
+  saveExport: (payload) => ipcRenderer.invoke('save-export', payload),
+  onControlCommand: (callback) => {
+    const listener = async (_event, command) => {
+      try {
+        const result = await callback(command.name, command.args)
+        ipcRenderer.send('control-result', { id: command.id, result })
+      } catch (error) {
+        ipcRenderer.send('control-result', { id: command.id, error: error.message })
+      }
+    }
+    ipcRenderer.on('control-command', listener)
+    return () => ipcRenderer.removeListener('control-command', listener)
+  },
   libraryDir: () => ipcRenderer.sendSync('library-dir'),
   loadStudents: () => ipcRenderer.sendSync('load-students'),
   saveStudents: (payload) => ipcRenderer.invoke('save-students', payload),

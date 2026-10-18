@@ -5,8 +5,6 @@ build
 .env
 electron/AppIcon.icns
 
-public/mediapipe/
-
 # Saved swings and private library data stay on the user's device.
 *.[mM][pP]4
 *.[mM][oO][vV]

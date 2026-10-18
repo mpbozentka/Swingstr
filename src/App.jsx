@@ -9,9 +9,10 @@ import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob, videoSavingEn
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import { useMarkers } from './hooks/useMarkers';
-import { usePoseAnalysis } from './hooks/usePoseAnalysis';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useGoogleDrive } from './hooks/useGoogleDrive';
+import { useSwingWorkflow } from './hooks/useSwingWorkflow';
+import { useSwingstrControl } from './hooks/useSwingstrControl';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -43,12 +44,11 @@ export default function Swingstr() {
   // Virtual trim range per side: { start, end } in seconds, either may be
   // null. The video file is never modified — playback and scrubbing are
   // confined to this window.
-  const [trims, setTrims] = useState({ left: { start: null, end: null }, right: { start: null, end: null } });
   const [toast, setToast] = useState(null); // { message, kind }
   // Side currently waiting on a URL input (null when modal closed)
   const [urlPromptSide, setUrlPromptSide] = useState(null);
   const [tool, setTool] = useState('move');
-  const [color, setColor] = useState('#ef4444');
+  const [color, setColor] = useState('#155e75');
   const [lineWidth, setLineWidth] = useState(3);
   const [speed, setSpeed] = useState(1.0);
   const [activeMenu, setActiveMenu] = useState(null);
@@ -58,7 +58,6 @@ export default function Swingstr() {
 
   const handleSourceClear = useCallback((side) => {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
-    setTrims((prev) => ({ ...prev, [side]: { start: null, end: null } }));
     if (side === activeScreen) {
       setGlobalTime(0);
       setGlobalDuration(0);
@@ -114,6 +113,7 @@ export default function Swingstr() {
     if (side === 'right') setLayout('split');
     setActiveScreen(side);
     setView('analyze');
+    return true;
   }, [handleUpload, handleDriveLoad, setUrlSource, streamDriveFile]);
 
   const {
@@ -129,7 +129,8 @@ export default function Swingstr() {
   useEffect(() => { clearMarkers('left'); }, [leftVideo, clearMarkers]);
   useEffect(() => { clearMarkers('right'); }, [rightVideo, clearMarkers]);
 
-  const pose = usePoseAnalysis({ leftRef, rightRef, leftVideo, rightVideo, trims, onToast: setToast });
+  const workflow = useSwingWorkflow({ leftRef, rightRef, markers, setMarker: handleSetMarker, removeMarker: handleRemoveMarker, leftVideo, rightVideo });
+  const trims = Object.fromEntries(['left', 'right'].map((side) => [side, workflow.selections[side] ? workflow.resolved(side) : { start: null, end: null }]));
 
   // Debounced — every keystroke in a student's notes textarea would otherwise
   // serialize the whole CRM (#21).
@@ -145,7 +146,7 @@ export default function Swingstr() {
     setSyncPoints((prev) => ({ ...prev, [side]: null }));
   }, []);
 
-  const handleSetTrim = useCallback((bound) => {
+  const handleSetTrim = ((bound) => {
     const ref = activeScreen === 'left' ? leftRef : rightRef;
     if (!ref.current?.hasVideo) return;
     const time = ref.current.currentTime;
@@ -158,71 +159,36 @@ export default function Swingstr() {
       setToast({ message: 'Trim end must be after the trim start.', kind: 'error' });
       return;
     }
-    setTrims((prev) => ({ ...prev, [activeScreen]: { ...prev[activeScreen], [bound]: time } }));
-  }, [activeScreen, trims]);
+    try { workflow.setSegment(activeScreen, { kind: 'times', start: cur.start ?? 0, end: cur.end ?? ref.current.duration, [bound]: time }); } catch (error) { setToast({ message: error.message, kind: 'error' }); }
+  });
 
-  const handleClearTrim = useCallback(() => {
-    setTrims((prev) => ({ ...prev, [activeScreen]: { start: null, end: null } }));
-  }, [activeScreen]);
+  const handleClearTrim = (() => {
+    workflow.clearSegment(activeScreen);
+  });
 
   const hasSyncOffset = sync && syncPoints.left != null && syncPoints.right != null;
   const syncOffset = hasSyncOffset ? syncPoints.left - syncPoints.right : 0;
 
-  // When the screens are linked, a P-marker belongs to the swing, not to one
-  // video: dropping P3 on the active side also drops P3 on the other side at
-  // the matching (sync-offset) time, so both videos carry the same checkpoints.
-  const setMarkerLinked = useCallback((side, index, time) => {
+  const reportError = (error) => setToast({ message: error.message, kind: 'error' });
+  const setMarkerIndependent = useCallback((side, index, time) => {
     handleSetMarker(side, index, time);
-    if (!sync) return;
-    const otherSide = side === 'left' ? 'right' : 'left';
-    const otherRef = otherSide === 'left' ? leftRef : rightRef;
-    if (!otherRef.current?.hasVideo) return;
-    const raw = side === 'left' ? time - syncOffset : time + syncOffset;
-    const otherDuration = otherRef.current.duration || 0;
-    const otherTime = Math.min(Math.max(0, raw), otherDuration > 0 ? otherDuration : raw);
-    handleSetMarker(otherSide, index, otherTime);
-  }, [sync, syncOffset, handleSetMarker]);
-
-  // Moving to a checkpoint moves BOTH swings when the screens are linked. The
-  // other video goes to its own marker of the same P-number where it has one —
-  // that's what makes P3 land on P3 even when the two swings are paced
-  // differently — and falls back to the sync offset when it doesn't.
-  const mirrorSeekToMarker = useCallback((fromSide, index, time) => {
-    if (!sync) return;
-    const otherSide = fromSide === 'left' ? 'right' : 'left';
-    const otherRef = otherSide === 'left' ? leftRef : rightRef;
-    if (!otherRef.current?.hasVideo) return;
-    const own = markers[otherSide].find((m) => m.index === index);
-    const raw = own
-      ? own.time
-      : (fromSide === 'left' ? time - syncOffset : time + syncOffset);
-    otherRef.current.seekTo(Math.max(0, raw));
-  }, [sync, syncOffset, markers]);
-
-  const goToMarker = useCallback((index) => {
-    const m = markers[activeScreen].find((mm) => mm.index === index);
-    if (!m) return;
-    const ref = activeScreen === 'left' ? leftRef : rightRef;
-    ref.current?.seekTo(m.time);
-    setGlobalTime(m.time);
-    mirrorSeekToMarker(activeScreen, index, m.time);
-  }, [markers, activeScreen, mirrorSeekToMarker]);
+  }, [handleSetMarker]);
+  const goToMarker = (index, side = activeScreen) => {
+    workflow.seekPosition(index + 1, sync || workflow.comparison.mode === 'aligned' ? 'both' : side).catch(reportError);
+  };
 
   // Step to the neighbouring checkpoint in `direction`. The 0.05s dead zone
   // keeps a marker we're already parked on from counting as "the next one".
-  const stepMarker = useCallback((direction) => {
+  const stepMarker = ((direction) => {
     const now = globalTimeRef.current;
-    const list = markers[activeScreen];
+    const list = markers[activeScreen].filter((m) => !(sync || workflow.comparison.mode === 'aligned') || markers[activeScreen === 'left' ? 'right' : 'left'].some((other) => other.index === m.index));
     const candidates = direction > 0
       ? list.filter((m) => m.time > now + 0.05).sort((a, b) => a.time - b.time)
       : list.filter((m) => m.time < now - 0.05).sort((a, b) => b.time - a.time);
     const next = candidates[0];
     if (!next) return;
-    const ref = activeScreen === 'left' ? leftRef : rightRef;
-    ref.current?.seekTo(next.time);
-    setGlobalTime(next.time);
-    mirrorSeekToMarker(activeScreen, next.index, next.time);
-  }, [markers, activeScreen, mirrorSeekToMarker]);
+    workflow.seekPosition(next.index + 1, sync || workflow.comparison.mode === 'aligned' ? 'both' : activeScreen).catch(reportError);
+  });
 
   // Drift correction loop (#6): different decode timings would let the two
   // videos visibly slip apart over a few seconds of synced playback. While
@@ -230,7 +196,7 @@ export default function Swingstr() {
   // when it drifts more than ~1 frame at 30fps. The snap is gentle enough
   // that the user only sees an occasional tiny re-seek, not stutter.
   useEffect(() => {
-    if (!sync || !isPlaying) return undefined;
+    if (!sync || !isPlaying || workflow.comparison.mode === 'aligned') return undefined;
     let frame = 0;
     const DRIFT_THRESHOLD = 0.06;
     const tick = () => {
@@ -248,7 +214,7 @@ export default function Swingstr() {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [sync, isPlaying, syncOffset]);
+  }, [sync, isPlaying, syncOffset, workflow.comparison.mode]);
 
   const adjustZoom = useCallback((delta) => {
     setZooms((prev) => {
@@ -258,7 +224,8 @@ export default function Swingstr() {
     });
   }, [activeScreen]);
 
-  const togglePlay = useCallback(() => {
+  const togglePlay = (() => {
+    if (workflow.comparison.mode === 'aligned') { try { workflow.toggleAligned(speed); } catch (error) { reportError(error); } return; }
     setIsPlaying((prev) => {
       const newState = !prev;
       if (sync) {
@@ -282,9 +249,10 @@ export default function Swingstr() {
       }
       return newState;
     });
-  }, [sync, activeScreen, hasSyncOffset, syncOffset]);
+  });
 
-  const seek = useCallback((amount) => {
+  const seek = ((amount) => {
+    workflow.pauseComparison();
     if (sync) {
       leftRef.current?.seekRelative(amount);
       rightRef.current?.seekRelative(amount);
@@ -292,13 +260,14 @@ export default function Swingstr() {
       const target = activeScreen === 'left' ? leftRef : rightRef;
       target.current?.seekRelative(amount);
     }
-  }, [sync, activeScreen]);
+  });
 
-  const changeSpeed = useCallback((newSpeed) => {
+  const changeSpeed = ((newSpeed) => {
+    workflow.pauseComparison();
     setSpeed(newSpeed);
     leftRef.current?.setPlaybackRate(newSpeed);
     rightRef.current?.setPlaybackRate(newSpeed);
-  }, []);
+  });
 
   const clearShapes = useCallback(() => {
     const target = activeScreen === 'left' ? leftRef : rightRef;
@@ -329,24 +298,31 @@ export default function Swingstr() {
   // active side's trim window so the UI doesn't visually jump ahead and snap
   // back on the next timeupdate, then seek whichever panes the current
   // sync/active state says should move.
-  const scrubTo = useCallback((raw) => {
+  const scrubTo = ((raw) => {
+    workflow.pauseComparison();
     let t = raw;
     const trim = trims[activeScreen];
     if (trim.start != null) t = Math.max(trim.start, t);
     if (trim.end != null) t = Math.min(trim.end, t);
     setGlobalTime(t);
     if (sync) {
-      leftRef.current?.seekTo(t);
-      rightRef.current?.seekTo(hasSyncOffset ? Math.max(0, t - syncOffset) : t);
+      leftRef.current?.seekTo(activeScreen === 'right' && hasSyncOffset ? t + syncOffset : t);
+      rightRef.current?.seekTo(activeScreen === 'left' && hasSyncOffset ? Math.max(0, t - syncOffset) : t);
     } else {
       if (activeScreen === 'left') leftRef.current?.seekTo(t);
       else rightRef.current?.seekTo(t);
     }
-  }, [sync, activeScreen, hasSyncOffset, syncOffset, trims]);
+  });
 
-  const handleGlobalScrub = useCallback((e) => {
+  const handleGlobalScrub = ((e) => {
     scrubTo(parseFloat(e.target.value));
-  }, [scrubTo]);
+  });
+
+  useSwingstrControl({
+    leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
+    setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
+    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+  });
 
   const saveToStudent = useCallback(async () => {
     if (!videoSavingEnabled()) return;
@@ -429,7 +405,7 @@ export default function Swingstr() {
       !!el && (el.matches?.(':where(input, textarea, select, [contenteditable=""], [contenteditable="true"])') ?? false);
 
     const handleKeyDown = (e) => {
-      if (pose.running || isTextish(document.activeElement)) return;
+      if (isTextish(document.activeElement)) return;
       if (e.code === 'KeyP') {
         pHeldRef.current = true; // a lone P does nothing on its own — no preventDefault
         return;
@@ -469,7 +445,7 @@ export default function Swingstr() {
       if (pDigit) {
         const keyIndex = pDigit[1] === '0' ? 9 : parseInt(pDigit[1], 10) - 1;
         e.preventDefault();
-        setMarkerLinked(activeScreen, keyIndex, globalTime);
+        setMarkerIndependent(activeScreen, keyIndex, globalTime);
       } else if (digitMatch && !e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey) {
         const keyIndex = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
         e.preventDefault();
@@ -478,7 +454,7 @@ export default function Swingstr() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [seek, togglePlay, setMarkerLinked, goToMarker, stepMarker, activeScreen, globalTime, pose.running]);
+  });
 
   const toastEl = (
     <Toast
@@ -511,8 +487,7 @@ export default function Swingstr() {
   return (
     <>
     <AnalyzerView
-      onOpenLibrary={() => { pose.cancel(); setView('library'); }}
-      pose={pose}
+      onOpenLibrary={() => setView('library')}
       layout={layout}
       setLayout={setLayout}
       sync={sync}
@@ -538,7 +513,7 @@ export default function Swingstr() {
       changeSpeed={changeSpeed}
       activeMenu={activeMenu}
       setActiveMenu={setActiveMenu}
-      isPlaying={isPlaying}
+      isPlaying={workflow.comparison.mode === 'aligned' ? workflow.playing : isPlaying}
       togglePlay={togglePlay}
       seek={seek}
       clearShapes={clearShapes}
@@ -551,6 +526,7 @@ export default function Swingstr() {
       onLinkedScrub={handleLinkedScrub}
       showSequenceModal={showSequenceModal}
       setShowSequenceModal={setShowSequenceModal}
+      workflow={workflow}
       markers={markers}
       trims={trims}
       activeTrim={trims[activeScreen]}
@@ -561,7 +537,7 @@ export default function Swingstr() {
       syncOffset={syncOffset}
       onSetSyncPoint={handleSetSyncPoint}
       onClearSyncPoint={handleClearSyncPoint}
-      onSetMarker={(index, time) => setMarkerLinked(activeScreen, index, time)}
+      onSetMarker={(index, time) => setMarkerIndependent(activeScreen, index, time)}
       onRemoveMarker={(index) => handleRemoveMarker(activeScreen, index)}
       onJumpToMarker={goToMarker}
       onPrevMarker={() => stepMarker(-1)}

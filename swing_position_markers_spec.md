@@ -1,15 +1,11 @@
 # Swing Position Markers (P1–P10) — Implementation Spec
 
-Follow-up spec, written 2026-07-11 after Mitch tested Phase 2/3 of the
-MediaPipe pose work (`mediapipe_implementation_plan.md`) and asked for four
-changes to the existing marker system and the angle graph. This is a
-separate feature area from the pose plan — the marker system predates the
-pose work — but it touches `SwingGraphPanel.jsx`, which the pose plan built.
+Historical follow-up spec, written 2026-07-11, for the manual P1–P10 marker
+system. Automatic body tracking and its measurement roadmap were removed
+on 2026-10-14; any graph references below are historical, not current scope.
 
-This document was produced through a clarifying-question pass with Mitch;
-his answers are baked into the decisions below, not left open. If you hit a
-spot where the code doesn't match what's described here, stop and ask rather
-than improvising — same rule as the pose plan.
+This document records Mitchell's decisions about markers. If current code
+and the requested marker behavior disagree, ask rather than improvising.
 
 **Do not start until Mitch tells you to.** This doc is a handoff artifact,
 not a go-ahead.

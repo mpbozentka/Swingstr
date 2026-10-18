@@ -1,29 +1,21 @@
 # Swingstr project instructions
 
-## Measurement roadmap
+## Analysis-first interface
 
-Mitchell's requested measurement categories are recorded in
-`mediapipe_implementation_plan.md`, under "Requested measurement roadmap
-(2026-10-01)". Use that list as the eventual measurement scope, preserving
-Setup posture, Down the line, and Face on as separate groups.
+Keep the top video-editing bar hidden by default and available through an
+explicit show/hide toggle. Swing analysis is the primary workflow; segment
+editing and comparison setup should not permanently occupy the video view.
+Keep drawing and playback controls available when the editing bar is hidden.
 
-Define the component, reference, checkpoint, units, confidence requirements,
-and coach-selected target before implementing each metric. Keep ambiguous
-labels unresolved, including the two Setup posture Hands entries. Do not
-invent their intended meanings or use undocumented competitor severity scores.
+## Analysis scope
 
-The current head-position preview is a 2D estimate with manual checkpoints.
-Treat requested, implemented, and validated coverage as different states.
-Follow the implementation plan's testing and staging workflow; do not commit
-until Mitchell confirms testing.
+Mitchell removed Practice focus and all automatic body tracking on 2026-10-14.
+Keep Swingstr focused on manual video review, comparison, drawings, checkpoints,
+trimming, and exports. Do not reintroduce body tracking, skeleton overlays,
+automatic body measurements, or their models and runtime dependencies unless
+Mitchell explicitly requests them again.
 
-## Overlay stability
-
-Mitchell reported visible overlay jitter during testing. Keep centered
-temporal smoothing in the replay and measurement path, with regression
-checks for jitter reduction and preservation of fast movement. Preserve raw
-confidence and missing detections; do not make uncertain points appear valid
-or use a trailing filter that shifts the overlay behind the swing.
+Do not commit until Mitchell confirms testing.
 
 ## Saved videos and deployment
 

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile, readdir, unlink } from 'node:fs/promises'
@@ -6,6 +6,11 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cancelYouTubeDownload, downloadYouTubeClip } from './youtube.js'
+import { Buffer } from 'node:buffer'
+import process from 'node:process'
+import { saveExportOutput } from './exportOutput.mjs'
+import { randomUUID } from 'node:crypto'
+import { startControlServer } from '../mcp/transport.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -126,6 +131,24 @@ function sendFile(res, filePath) {
 
 let mainWindow = null
 let server = null
+let controlServer = null
+const pendingCommands = new Map()
+
+function dispatchControl(name, args) {
+  return new Promise((resolve, reject) => {
+    if (!mainWindow || mainWindow.webContents.isLoading()) {
+      reject(new Error('Swingstr is still loading. Try again in a moment.'))
+      return
+    }
+    const id = randomUUID()
+    const timer = setTimeout(() => {
+      pendingCommands.delete(id)
+      reject(new Error('Swingstr did not respond to the command.'))
+    }, 15000)
+    pendingCommands.set(id, { resolve, reject, timer })
+    mainWindow.webContents.send('control-command', { id, name, args })
+  })
+}
 
 function sendIndex(res) {
   const file = path.join(DIST, 'index.html')
@@ -241,6 +264,22 @@ function createWindow() {
 }
 
 function registerIpc() {
+  ipcMain.handle('save-export', async (event, payload) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Unknown export sender.');
+    return saveExportOutput(payload, {
+      directory: path.join(app.getPath('videos'), 'Swingstr Exports'), checkout: ROOT, library: libraryDir(),
+      chooseDestination: (defaultPath, ext) => dialog.showSaveDialog(mainWindow, { defaultPath, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] }),
+    })
+  })
+  ipcMain.on('control-result', (event, message) => {
+    if (event.sender !== mainWindow?.webContents) return
+    const pending = pendingCommands.get(message.id)
+    if (!pending) return
+    clearTimeout(pending.timer)
+    pendingCommands.delete(message.id)
+    if (message.error) pending.reject(new Error(message.error))
+    else pending.resolve(message.result)
+  })
   ipcMain.on('library-dir', (event) => {
     event.returnValue = libraryDir()
   })
@@ -332,6 +371,13 @@ if (!gotLock) {
     registerIpc()
     await startServer()
     createWindow()
+    try {
+      const controlDir = path.join(app.getPath('userData'), 'control')
+      mkdirSync(controlDir, { recursive: true, mode: 0o700 })
+      controlServer = await startControlServer(path.join(controlDir, 'bridge.sock'), dispatchControl)
+    } catch (error) {
+      console.error('[swingstr] local control unavailable:', error.message)
+    }
   })
 
   app.on('activate', () => {
@@ -339,6 +385,12 @@ if (!gotLock) {
   })
 
   app.on('window-all-closed', () => {
+    if (controlServer) controlServer.close()
+    for (const pending of pendingCommands.values()) {
+      clearTimeout(pending.timer)
+      pending.reject(new Error('Swingstr closed.'))
+    }
+    pendingCommands.clear()
     if (server) {
       server.close()
       server = null

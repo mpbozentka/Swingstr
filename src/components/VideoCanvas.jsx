@@ -8,7 +8,9 @@ import React, {
 } from 'react';
 import { Upload, X, Globe, HardDrive } from 'lucide-react';
 import { renderShape } from '../utils/shapeRenderer';
-import { drawPose, samplePose } from '../utils/practiceMetrics';
+import { shapeFromCommand, shapeToVideo, mapShape } from '../utils/controlShapes';
+import { annotationVisible, validateVisibility } from '../utils/annotationTiming';
+import { seekDecoded, createExportVideo, releaseVideo } from '../utils/decodedVideo';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 const VideoCanvas = forwardRef(
@@ -31,12 +33,25 @@ const VideoCanvas = forwardRef(
       onPlayStateChange,
       trimStart,
       trimEnd,
-      poseFrames,
-      showSkeleton,
+      markers = [],
+      comparisonOwned = false,
+      onUserPause,
     },
     ref
   ) => {
     const videoRef = useRef(null);
+    const frameRef = useRef(null);
+    const sourceRef = useRef(null);
+    const sourceId = src;
+    const [drawingScope, setDrawingScope] = useState({ kind: 'all' });
+    const [scopeError, setScopeError] = useState('');
+    const [showAngleLabel, setShowAngleLabel] = useState(false);
+    const currentRect = () => computeVideoRect(videoRef.current, containerRef.current);
+    const displayed = (shape) => shape.coordinates === 'source' ? mapShape(shape, ({ x, y }) => { const r = currentRect(); return { x: r.x + x * r.w, y: r.y + y * r.h }; }) : shape;
+    const canonical = (shape) => ({ ...shapeToVideo(shape, currentRect()), coordinates: 'source' });
+    const eligible = (shape) => annotationVisible(shape, { time: videoRef.current?.currentTime ?? 0, frame: frameRef.current, markers });
+    const currentVisibility = () => drawingScope.kind === 'frame' ? { kind: 'frame', mediaTime: frameRef.current?.mediaTime } : { ...drawingScope };
+    const metadata = () => ({ id: crypto.randomUUID(), sourceId, visibility: currentVisibility(), showAngleLabel });
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
 
@@ -76,7 +91,7 @@ const VideoCanvas = forwardRef(
       let frame = 0;
       const tick = () => {
         const { start, end } = trimRef.current;
-        if (!vid.paused) {
+        if (!comparisonOwned && !vid.paused) {
           if (end != null && vid.currentTime >= end) {
             vid.currentTime = start ?? 0;
           } else if (start != null && vid.currentTime < start - 0.05) {
@@ -88,6 +103,24 @@ const VideoCanvas = forwardRef(
       };
       frame = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(frame);
+    }, [src, comparisonOwned]);
+
+    useEffect(() => {
+      sourceRef.current = src;
+      shapesRef.current = []; setShapes([]); frameRef.current = null;
+      setSelectedIndex(-1); setPoints([]); setCurrentShape(null);
+      const video = videoRef.current;
+      if (!video?.requestVideoFrameCallback) return undefined;
+      let id;
+      let first = true;
+      const tick = (_now, meta) => {
+        frameRef.current = { mediaTime: meta.mediaTime, presentedFrames: meta.presentedFrames };
+        video._swingstrFrame = frameRef.current;
+        if (first) { setDrawingScope({ kind: 'frame', mediaTime: meta.mediaTime }); first = false; }
+        id = video.requestVideoFrameCallback(tick);
+      };
+      id = video.requestVideoFrameCallback(tick);
+      return () => video.cancelVideoFrameCallback(id);
     }, [src]);
 
     const [currentShape, setCurrentShape] = useState(null);
@@ -125,7 +158,7 @@ const VideoCanvas = forwardRef(
       return { x, y, w, h };
     };
 
-    const takeSnapshot = useCallback(async () => {
+    const takeSnapshot = (async () => {
       if (!videoRef.current || !canvasRef.current || !containerRef.current)
         return null;
       const vid = videoRef.current;
@@ -143,29 +176,13 @@ const VideoCanvas = forwardRef(
         return null;
       }
 
-      // Map container-pixel shape coords onto the video-pixel canvas. This is
-      // the inverse of the letterbox mapping the live view applies; without
-      // it, shapes drawn over a 16:9 video in a 4:3 cell were stretched and
-      // shifted on export.
-      const videoRect = computeVideoRect(vid, containerRef.current);
-      const sx = tempCanvas.width / videoRect.w;
-      const sy = tempCanvas.height / videoRect.h;
-
-      ctx.save();
-      ctx.scale(sx, sy);
-      ctx.translate(-videoRect.x, -videoRect.y);
-      shapesRef.current.forEach((s) => {
-        renderShape(ctx, s, {
-          zoomLevel: 1,
-          video: vid,
-          videoRect,
-          blurPx: 15,
-        });
-      });
-      ctx.restore();
+      const videoRect = { x: 0, y: 0, w: vid.videoWidth, h: vid.videoHeight };
+      shapesRef.current.filter(eligible).forEach((shape) => renderShape(ctx,
+        mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth, y: y * vid.videoHeight })),
+        { zoomLevel: 1, video: vid, videoRect }));
 
       return tempCanvas.toDataURL('image/jpeg', 0.9);
-    }, []);
+    });
 
     /**
      * Paint this pane exactly as it looks on screen (video + zoom/pan +
@@ -173,7 +190,7 @@ const VideoCanvas = forwardRef(
      * canvas. Used by the video-clip recorder to composite one or two panes
      * into a single frame without duplicating the draw logic.
      */
-    const drawExportFrame = useCallback((ctx, dest) => {
+    const drawExportFrame = ((ctx, dest) => {
       const vid = videoRef.current;
       const container = containerRef.current;
       const overlay = canvasRef.current;
@@ -207,47 +224,23 @@ const VideoCanvas = forwardRef(
       }
 
       // Overlay canvas is already sized to the container, so it maps 1:1.
-      ctx.drawImage(overlay, 0, 0, cw, ch);
+      shapesRef.current.filter(eligible).forEach((shape) => renderShape(ctx, displayed(shape), { zoomLevel: 1, video: vid, videoRect: computeVideoRect(vid, container) }));
       ctx.restore();
-    }, [panX, panY, zoomLevel]);
+    });
 
     const captureFrameAtTime = useCallback(async (time) => {
-      const vid = videoRef.current;
-      const container = containerRef.current;
-      if (!vid || !container || vid.videoWidth === 0) return null;
-      const wasPlaying = !vid.paused;
-      if (wasPlaying) vid.pause();
-      // Setting currentTime to the value it already holds fires no 'seeked'
-      // event, so waiting on one would hang forever — which is the normal case
-      // right after a marker jump parks the video exactly on that timestamp.
-      // The timeout covers the same class of miss on a browser that swallows
-      // the event: a stale frame beats a stuck export.
-      if (Math.abs(vid.currentTime - time) > 0.001) {
-        vid.currentTime = time;
-        await new Promise((resolve) => {
-          const done = () => { clearTimeout(timer); resolve(); };
-          const timer = setTimeout(done, 2000);
-          vid.addEventListener('seeked', done, { once: true });
-        });
-      }
-      // Small delay to ensure frame is decoded
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const offscreen = document.createElement('canvas');
-      offscreen.width = vid.videoWidth;
-      offscreen.height = vid.videoHeight;
-      const ctx = offscreen.getContext('2d');
+      const original = videoRef.current;
+      if (!original?.videoWidth) throw new Error('No decoded source loaded.');
+      const token = src;
+      const vid = await createExportVideo(src);
       try {
-        ctx.drawImage(vid, 0, 0, offscreen.width, offscreen.height);
-      } catch (e) {
-        console.warn('captureFrameAtTime: drawImage failed', e.message);
-        return null;
-      }
-      return {
-        canvas: offscreen,
-        shapes: shapesRef.current.slice(),
-        videoRect: computeVideoRect(vid, container),
-      };
-    }, []);
+        const frame = await seekDecoded(vid, time);
+        if (sourceRef.current !== token) throw new Error('Source replaced during capture.');
+        const canvas = document.createElement('canvas'); canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+        canvas.getContext('2d').drawImage(vid, 0, 0);
+        return { canvas, shapes: shapesRef.current.filter((shape) => annotationVisible(shape, { time, frame, markers })).map((shape) => mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth, y: y * vid.videoHeight }))), videoRect: { x: 0, y: 0, w: vid.videoWidth, h: vid.videoHeight } };
+      } finally { releaseVideo(vid); }
+    }, [src, markers]);
 
     useImperativeHandle(
       ref,
@@ -256,16 +249,26 @@ const VideoCanvas = forwardRef(
         pause: () => videoRef.current?.pause(),
         seekRelative: (s) => {
           if (videoRef.current) {
+            videoRef.current._swingstrSeekNonce = (videoRef.current._swingstrSeekNonce ?? 0) + 1;
             videoRef.current.currentTime = clampToTrim(videoRef.current.currentTime + s);
           }
         },
+        seekSource: async (t, signal) => {
+          const token = src;
+          videoRef.current?.pause();
+          const frame = await seekDecoded(videoRef.current, t, signal);
+          if (sourceRef.current !== token) throw new Error('Source replaced during seek.');
+          frameRef.current = frame;
+          return { time: videoRef.current.currentTime, frame };
+        },
         seekTo: (t) => {
-          if (videoRef.current) videoRef.current.currentTime = clampToTrim(t);
+          if (videoRef.current) { videoRef.current._swingstrSeekNonce = (videoRef.current._swingstrSeekNonce ?? 0) + 1; videoRef.current.currentTime = clampToTrim(t); }
         },
         setPlaybackRate: (r) => {
           if (videoRef.current) videoRef.current.playbackRate = r;
         },
         clearShapes: () => {
+          shapesRef.current = [];
           setShapes([]);
           setSelectedIndex(-1);
           draggingHandle.current = null;
@@ -282,6 +285,46 @@ const VideoCanvas = forwardRef(
         // Read shapes via the ref so we don't rebind the imperative handle
         // every time the user finishes a stroke. (#8)
         getShapes: () => shapesRef.current.slice(),
+        getControlState: () => {
+          const video = videoRef.current;
+          const container = containerRef.current;
+          const rect = container && computeVideoRect(video, container);
+          return {
+            sourceId, generation: sourceId, src,
+            frame: frameRef.current ?? { unsupported: true },
+            frameMode: frameRef.current?.mediaTime != null ? 'decoded' : 'unsupported',
+            hasVideo: Boolean(src),
+            ready: Boolean(video?.readyState >= 2 && video.videoWidth),
+            time: video?.currentTime ?? 0,
+            duration: Number.isFinite(video?.duration) ? video.duration : 0,
+            playing: Boolean(video && !video.paused),
+            speed: video?.playbackRate ?? 1,
+            width: video?.videoWidth ?? 0,
+            height: video?.videoHeight ?? 0,
+            drawings: rect ? shapesRef.current.map((shape, index) => ({ index, ...shape })) : [],
+          };
+        },
+        putControlShape: (args, defaults) => {
+          const video = videoRef.current;
+          const container = containerRef.current;
+          if (!video?.videoWidth || !container) throw new Error('Load a video before drawing.');
+          video.pause();
+          const next = shapesRef.current.slice();
+          const index = args.id ? next.findIndex((s) => s.id === args.id) : args.index ?? next.length;
+          if (index < 0 || index > next.length || ((args.index != null || args.id) && index === next.length)) throw new Error('Drawing not found.');
+          const previous = next[index];
+          const geometry = shapeFromCommand(args, { x: 0, y: 0, w: 1, h: 1 }, { color: previous?.color ?? defaults.color, width: previous?.width ?? defaults.width });
+          const visibility = args.visibility ?? previous?.visibility ?? (frameRef.current?.mediaTime != null ? { kind: 'frame', mediaTime: frameRef.current.mediaTime } : { kind: 'all' });
+          validateVisibility(visibility, video.duration, frameRef.current?.mediaTime != null);
+          const shape = { ...previous, ...geometry, id: previous?.id ?? crypto.randomUUID(), sourceId, coordinates: 'source', visibility, showAngleLabel: args.showAngleLabel ?? previous?.showAngleLabel ?? false };
+          next[index] = shape; shapesRef.current = next; setShapes(next); setSelectedIndex(-1);
+          return { index, ...shape };
+        },
+        removeDrawing: (id) => {
+          const next = shapesRef.current.filter((s) => s.id !== id);
+          if (next.length === shapesRef.current.length) throw new Error('Drawing not found.');
+          shapesRef.current = next; setShapes(next); setSelectedIndex(-1); return { removed: id };
+        },
         hasVideo: !!src,
         get currentTime() {
           return videoRef.current?.currentTime ?? 0;
@@ -290,7 +333,6 @@ const VideoCanvas = forwardRef(
           return videoRef.current?.duration ?? 0;
         },
       }),
-      [takeSnapshot, captureFrameAtTime, drawExportFrame, src, clampToTrim]
     );
 
     useEffect(() => {
@@ -320,7 +362,9 @@ const VideoCanvas = forwardRef(
       if (v && isActive && onPlayStateChange) onPlayStateChange(!v.paused);
     };
 
-    const draw = useCallback(() => {
+    // Render reads current source geometry and decoded identity on every frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const draw = (() => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       const vid = videoRef.current;
@@ -365,10 +409,8 @@ const VideoCanvas = forwardRef(
       ctx.scale(zoomLevel, zoomLevel);
       ctx.translate(-centerX, -centerY);
 
-      if (showSkeleton) drawPose(ctx, samplePose(poseFrames, vid?.currentTime ?? 0), videoRect, zoomLevel);
-
-      shapes.forEach((shape) =>
-        renderShape(ctx, shape, {
+      shapes.filter(eligible).forEach((shape) =>
+        renderShape(ctx, displayed(shape), {
           zoomLevel,
           video: vid,
           videoRect,
@@ -389,8 +431,8 @@ const VideoCanvas = forwardRef(
           ctx.fill();
         });
       }
-      if (selectedIndex >= 0 && selectedIndex < shapes.length) {
-        const sel = shapes[selectedIndex];
+      if (selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])) {
+        const sel = displayed(shapes[selectedIndex]);
         const handles = getHandlesForShape(sel, zoomLevel);
         ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
         ctx.strokeStyle = 'white';
@@ -403,19 +445,19 @@ const VideoCanvas = forwardRef(
         });
       }
       ctx.restore();
-    }, [shapes, currentShape, points, tool, color, zoomLevel, panX, panY, selectedIndex, poseFrames, showSkeleton]);
+    });
 
     useEffect(() => {
       let anim;
       const tick = () => {
         draw();
-        if (showSkeleton && poseFrames?.length) anim = requestAnimationFrame(tick);
+        anim = requestAnimationFrame(tick);
       };
       anim = requestAnimationFrame(tick);
       const observer = new ResizeObserver(draw);
       if (containerRef.current) observer.observe(containerRef.current);
       return () => { cancelAnimationFrame(anim); observer.disconnect(); };
-    }, [draw, showSkeleton, poseFrames]);
+    }, [draw]);
 
     const getEventCoords = (e) => {
       if (e.touches?.[0]) {
@@ -454,15 +496,16 @@ const VideoCanvas = forwardRef(
         return;
       }
       if (tool === 'move') return;
+      onUserPause?.();
       const pos = getPos(e);
-      if (selectedIndex >= 0 && selectedIndex < shapes.length) {
-        const handleId = hitTestHandle(pos, shapes[selectedIndex], zoomLevel);
+      if (selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])) {
+        const handleId = hitTestHandle(pos, displayed(shapes[selectedIndex]), zoomLevel);
         if (handleId) {
           draggingHandle.current = { shapeIndex: selectedIndex, handleId };
           if (videoRef.current) videoRef.current.pause();
           return;
         }
-        const idx = findShapeAtPos(pos, shapes, zoomLevel);
+        const idx = findShapeAtPos(pos, shapes.map((s) => eligible(s) ? displayed(s) : { type: 'hidden' }), zoomLevel);
         if (idx >= 0) {
           setSelectedIndex(idx);
           return;
@@ -474,16 +517,18 @@ const VideoCanvas = forwardRef(
         return;
       }
       if (tool === 'select') {
-        const idx = findShapeAtPos(pos, shapes, zoomLevel);
+        const idx = findShapeAtPos(pos, shapes.map((s) => eligible(s) ? displayed(s) : { type: 'hidden' }), zoomLevel);
         setSelectedIndex(idx);
         return;
       }
+      try { validateVisibility(currentVisibility(), videoRef.current.duration, frameRef.current?.mediaTime != null); setScopeError(''); } catch (error) { setScopeError(error.message); return; }
       if (videoRef.current) videoRef.current.pause();
       if (tool === 'angle') {
         const newPoints = [...points, pos];
         setPoints(newPoints);
         if (newPoints.length === 3) {
           const newShape = {
+            ...metadata(),
             type: 'angle',
             p1: newPoints[0],
             p2: newPoints[1],
@@ -492,7 +537,7 @@ const VideoCanvas = forwardRef(
             width: lineWidth,
           };
           setShapes((prev) => {
-            const next = [...prev, newShape];
+            const next = [...prev, canonical(newShape)];
             setSelectedIndex(next.length - 1);
             return next;
           });
@@ -506,6 +551,7 @@ const VideoCanvas = forwardRef(
         // pointermove; we'll commit to React state on pointerup. (#22)
         livePointsRef.current = [pos];
         setCurrentShape({
+          ...metadata(),
           type: 'free',
           points: livePointsRef.current,
           color,
@@ -513,6 +559,7 @@ const VideoCanvas = forwardRef(
         });
       } else {
         setCurrentShape({
+          ...metadata(),
           type: tool,
           start: pos,
           end: pos,
@@ -540,7 +587,7 @@ const VideoCanvas = forwardRef(
           const next = [...prev];
           const shape = next[dh.shapeIndex];
           if (shape) {
-            next[dh.shapeIndex] = updateShapeWithHandle(shape, dh.handleId, pos);
+            next[dh.shapeIndex] = canonical(updateShapeWithHandle(displayed(shape), dh.handleId, pos));
           }
           return next;
         });
@@ -579,7 +626,7 @@ const VideoCanvas = forwardRef(
           ? { ...currentShape, points: livePointsRef.current.slice() }
           : currentShape;
         setShapes((prev) => {
-          const next = [...prev, committed];
+          const next = [...prev, canonical(committed)];
           setSelectedIndex(next.length - 1);
           return next;
         });
@@ -627,6 +674,19 @@ const VideoCanvas = forwardRef(
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {src && <div className="absolute top-3 left-3 z-50 bg-gray-900/90 p-2 rounded text-xs flex flex-wrap gap-2 max-w-[80%]" onPointerDown={(e) => e.stopPropagation()}>
+          <label>Drawing scope <select aria-label="Drawing scope" className="bg-gray-800" value={drawingScope.kind} onChange={(e) => {
+            const kind = e.target.value;
+            setDrawingScope(kind === 'frame' ? { kind, mediaTime: frameRef.current.mediaTime } : kind === 'range' ? { kind, start: videoRef.current.currentTime, end: Math.min(videoRef.current.duration, videoRef.current.currentTime + 0.2) } : kind === 'positions' ? { kind, from: 4, to: 6 } : { kind });
+          }}><option value="all">Throughout source</option><option value="frame" disabled={!frameRef.current?.mediaTime && frameRef.current?.mediaTime !== 0}>This decoded frame</option><option value="range">Time range</option><option value="positions">Checkpoint range</option></select></label>
+          {drawingScope.kind === 'range' && ['start', 'end'].map((key) => <label key={key}>{key}<input className="bg-gray-800 w-16" type="number" step="0.01" value={drawingScope[key]} onChange={(e) => setDrawingScope({ ...drawingScope, [key]: Number(e.target.value) })} /></label>)}
+          {drawingScope.kind === 'positions' && ['from', 'to'].map((key) => <label key={key}>{key}<select className="bg-gray-800" value={drawingScope[key]} onChange={(e) => setDrawingScope({ ...drawingScope, [key]: Number(e.target.value) })}>{Array.from({ length: 10 }, (_, i) => <option key={i} value={i}>P{i + 1}</option>)}</select></label>)}
+          {shapes.length > 0 && <select aria-label="Select drawing including hidden" className="bg-gray-800 max-w-32" value={selectedIndex} onChange={(e) => setSelectedIndex(Number(e.target.value))}><option value={-1}>Drawing list</option>{shapes.map((shape, i) => <option key={shape.id} value={i}>{i + 1} {shape.type} {eligible(shape) ? '' : '(hidden / unresolved)'}</option>)}</select>}
+          <label><input type="checkbox" checked={showAngleLabel} onChange={(e) => setShowAngleLabel(e.target.checked)} />Angle number</label>
+          {selectedIndex >= 0 && <button onClick={() => setShapes((prev) => prev.map((shape, i) => i === selectedIndex ? { ...shape, visibility: drawingScope.kind === 'frame' ? { kind: 'frame', mediaTime: frameRef.current?.mediaTime } : { ...drawingScope }, showAngleLabel } : shape))}>Apply to selected</button>}
+          {selectedIndex >= 0 && <button onClick={() => { setShapes((prev) => prev.filter((_, i) => i !== selectedIndex)); setSelectedIndex(-1); }}>Remove selected drawing</button>}
+        </div>}
+        {scopeError && <p role="alert" className="absolute top-20 left-3 z-50 text-red-300 bg-gray-900 p-2">{scopeError}</p>}
         {isDragOver && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-purple-500/20 border-4 border-dashed border-purple-400 pointer-events-none">
             <p className="text-lg font-medium text-white">Drop video here</p>
@@ -691,7 +751,7 @@ const VideoCanvas = forwardRef(
                 }}
                 className="w-full h-full object-contain pointer-events-none"
                 playsInline
-                loop
+                loop={!comparisonOwned}
                 muted
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}

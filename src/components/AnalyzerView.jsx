@@ -13,7 +13,8 @@ import {
   Users,
   Crosshair,
   Check,
-  Activity,
+  SlidersHorizontal,
+  Menu,
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import ScreenPane from './ScreenPane';
@@ -23,8 +24,9 @@ import Timeline from './Timeline';
 import ExportModal from './ExportModal';
 import GoogleAuthButton from './GoogleAuthButton';
 import DrivePickerModal from './DrivePickerModal';
-import PracticePanel from './PracticePanel';
+import SwingWorkflowControls from './SwingWorkflowControls';
 import { videoSavingEnabled } from '../utils/storage';
+import { useEscapeClose } from '../hooks/useEscapeClose';
 
 // The floating control bar is sized by a single scale factor rather than an
 // explicit width/height, so the buttons, text and scrub track all shrink
@@ -48,7 +50,7 @@ function readBarScale() {
 
 export default function AnalyzerView({
   onOpenLibrary,
-  pose,
+  workflow,
   layout,
   setLayout,
   sync,
@@ -115,8 +117,13 @@ export default function AnalyzerView({
   onSignOut,
   onDriveLoad,
 }) {
-  const [practiceOpen, setPracticeOpen] = useState(false);
-  const [overlays, setOverlays] = useState({ left: true, right: true });
+  const aligned = workflow.comparison.mode === 'aligned';
+  const timelinePoints = aligned ? Object.fromEntries(['left', 'right'].map((side) => [side, markers[side].find((m) => m.index === workflow.comparison.anchorPosition - 1)?.time ?? null])) : syncPoints;
+  const timelineHasOffset = aligned ? timelinePoints.left != null && timelinePoints.right != null : hasSyncOffset;
+  const timelineOffset = aligned && timelineHasOffset ? timelinePoints.left - timelinePoints.right : syncOffset;
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  useEscapeClose(headerMenuOpen, () => setHeaderMenuOpen(false));
+  const [editingToolsOpen, setEditingToolsOpen] = useState(false);
   const [drivePickerSide, setDrivePickerSide] = React.useState(null);
 
   const [barScale, setBarScale] = useState(readBarScale);
@@ -158,8 +165,9 @@ export default function AnalyzerView({
 
   return (
     <div
-      className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative"
-      onClick={() => setActiveMenu(null)}
+      data-editing-open={editingToolsOpen}
+      className="analyzer-shell h-screen w-screen bg-gray-900 text-gray-100 flex flex-col font-sans relative"
+      onClick={() => { setActiveMenu(null); setHeaderMenuOpen(false); }}
     >
       <DrivePickerModal
         open={!!drivePickerSide}
@@ -191,9 +199,10 @@ export default function AnalyzerView({
         rightMarkers={markers?.right || []}
         syncOffset={syncOffset}
         playbackSpeed={speed}
+        workflow={workflow}
       />
 
-      <header inert={!!pose.running} className={`h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20 ${pose.running ? 'opacity-60' : ''}`}>
+      <header className="analyzer-header h-11 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <img
@@ -215,13 +224,32 @@ export default function AnalyzerView({
             <Users size={12} /> Student Library
           </button>}
         </div>
+        <button
+          className="mobile-header-toggle hidden items-center gap-2 rounded-lg bg-gray-800 px-3 text-sm"
+          aria-label="View and tools"
+          aria-expanded={headerMenuOpen}
+          aria-controls="analyzer-header-options"
+          onClick={(e) => { e.stopPropagation(); setHeaderMenuOpen((open) => !open); }}
+        >
+          <Menu size={18} />View & tools
+        </button>
+        <div id="analyzer-header-options" className={`analyzer-header-options ${headerMenuOpen ? 'is-open' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-4">
-          <button onClick={() => setPracticeOpen(!practiceOpen)} aria-pressed={practiceOpen} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${practiceOpen ? 'bg-sky-950 text-sky-300 border-sky-600/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}><Activity size={14} />Practice focus</button>
+          <button
+            onClick={() => { setEditingToolsOpen((open) => !open); setHeaderMenuOpen(false); }}
+            aria-label={editingToolsOpen ? 'Hide editing tools' : 'Show editing tools'}
+            aria-expanded={editingToolsOpen}
+            aria-controls="video-editing-tools"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border ${editingToolsOpen ? 'bg-purple-950 text-purple-300 border-purple-600/50' : 'bg-gray-800 text-gray-300 border-gray-700 hover:bg-gray-700'}`}
+          >
+            <SlidersHorizontal size={14} />Editing tools
+          </button>
           <div className="flex bg-gray-800 rounded-lg p-1">
             <button
               onClick={() => {
                 setLayout('single');
                 setActiveScreen('left');
+                setHeaderMenuOpen(false);
               }}
               aria-label="Single screen layout"
               aria-pressed={layout === 'single'}
@@ -230,7 +258,7 @@ export default function AnalyzerView({
               <Maximize size={18} />
             </button>
             <button
-              onClick={() => setLayout('split')}
+              onClick={() => { setLayout('split'); setHeaderMenuOpen(false); }}
               aria-label="Split screen layout"
               aria-pressed={layout === 'split'}
               className={`p-1.5 rounded ${layout === 'split' ? 'bg-gray-600 text-white' : 'text-gray-400'}`}
@@ -303,17 +331,29 @@ export default function AnalyzerView({
             <ZoomIn size={18} />
           </Button>
         </div>
+        </div>
       </header>
 
+      <div id="video-editing-tools" hidden={!editingToolsOpen} className="editing-tools-panel shrink-0">
+        <SwingWorkflowControls workflow={workflow} activeScreen={activeScreen} markers={markers} leftRef={leftRef} rightRef={rightRef} />
+      </div>
       {/* Everything below the header. The video fills the region; the tool
           rail and the transport bar float on glass over it. */}
-      <div className="flex-1 flex overflow-hidden min-w-0">
-      <main inert={!!pose.running} className="flex-1 min-w-0 flex overflow-hidden bg-black relative">
+      <div className="analysis-workspace flex-1 flex overflow-hidden min-w-0 min-h-0">
+      <main className="analyzer-main flex-1 min-w-0 min-h-0 flex overflow-hidden bg-black relative">
+        {layout === 'split' && <div className="mobile-pane-switch hidden" aria-label="Comparison video">
+          {['left', 'right'].map((side) => <button key={side} onClick={() => setActiveScreen(side)} aria-pressed={activeScreen === side} className={activeScreen === side ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'}>Video {side === 'left' ? 'A' : 'B'}</button>)}
+        </div>}
+        <div className="analysis-panes flex-1 min-w-0 min-h-0 flex">
         <ScreenPane
           side="left"
           layout={layout}
           active={activeScreen === 'left'}
           ref={leftRef}
+          markers={markers.left}
+          onUserPause={workflow.pauseComparison}
+          comparisonOwned={workflow.comparison.mode === 'aligned'}
+          held={workflow.held.left}
           src={leftVideo}
           tool={tool}
           color={color}
@@ -332,17 +372,18 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
           trimStart={trims.left.start}
           trimEnd={trims.left.end}
-          poseFrames={pose.left.frames}
-          showSkeleton={overlays.left}
         />
 
-        {layout === 'split' && (
-          <ScreenPane
+        <ScreenPane
             side="right"
             layout={layout}
             active={activeScreen === 'right'}
-            containerClassName="border-l border-gray-800"
+            containerClassName={layout === 'split' ? 'border-l border-gray-800' : 'hidden'}
             ref={rightRef}
+            markers={markers.right}
+            onUserPause={workflow.pauseComparison}
+          comparisonOwned={workflow.comparison.mode === 'aligned'}
+            held={workflow.held.right}
             src={rightVideo}
             tool={tool}
             color={color}
@@ -361,10 +402,8 @@ export default function AnalyzerView({
           onPlayStateChange={onPlayStateChange}
             trimStart={trims.right.start}
             trimEnd={trims.right.end}
-            poseFrames={pose.right.frames}
-            showSkeleton={overlays.right}
           />
-        )}
+        </div>
         <LeftRail
           tool={tool}
           setTool={setTool}
@@ -390,7 +429,7 @@ export default function AnalyzerView({
             the left edge shrinks it evenly from both sides. */}
         <div
           ref={barRef}
-          className="footer-mobile-safe absolute bottom-1 left-20 right-20 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
+          className="analysis-transport footer-mobile-safe absolute bottom-1 left-20 right-20 z-30 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50 flex flex-col py-1"
           style={{ transform: `scale(${barScale})`, transformOrigin: 'bottom center' }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -402,7 +441,7 @@ export default function AnalyzerView({
             role="separator"
             aria-label="Resize control bar"
             title="Drag to resize the control bar — double-click to reset"
-            className="absolute left-0 top-1/2 w-4 h-12 flex items-center justify-center cursor-ew-resize touch-none group"
+            className="transport-resize absolute left-0 top-1/2 w-4 h-12 flex items-center justify-center cursor-ew-resize touch-none group"
             style={{ transform: `translate(-50%, -50%) scale(${1 / barScale})` }}
           >
             <div className="w-1 h-9 rounded-full bg-white/25 group-hover:bg-white/70 transition-colors" />
@@ -412,12 +451,12 @@ export default function AnalyzerView({
             globalDuration={globalDuration}
             onScrub={onGlobalScrub}
             activeTrim={activeTrim}
-            syncPoints={syncPoints}
+            syncPoints={timelinePoints}
             markers={markers}
             activeScreen={activeScreen}
-            sync={sync}
-            hasSyncOffset={hasSyncOffset}
-            syncOffset={syncOffset}
+            sync={sync || aligned}
+            hasSyncOffset={timelineHasOffset}
+            syncOffset={timelineOffset}
             hasBothVideos={layout === 'split' && !!leftVideo && !!rightVideo}
             onJumpTo={onJumpToMarker}
             onSetMarker={onSetMarker}
@@ -426,7 +465,7 @@ export default function AnalyzerView({
             onNext={onNextMarker}
           />
 
-          <div className="flex items-center justify-center gap-5 pb-1">
+          <div className="transport-buttons flex items-center justify-center gap-5 pb-1">
             <button
               onClick={() => seek(-0.05)}
               aria-label="Previous frame"
@@ -458,23 +497,7 @@ export default function AnalyzerView({
             </button>
           </div>
         </div>
-        {pose.running && <div className="absolute inset-0 z-[70] bg-black/20 cursor-wait" aria-label="Video controls paused during analysis" />}
       </main>
-      <PracticePanel
-        key={`${activeScreen}:${activeScreen === 'left' ? leftVideo : rightVideo}`}
-        open={practiceOpen}
-        analysis={pose[activeScreen]}
-        busy={!!pose.running}
-        hasVideo={!!(activeScreen === 'left' ? leftVideo : rightVideo)}
-        markers={markers[activeScreen]}
-        onAnalyze={() => pose.analyze(activeScreen)}
-        onCancel={pose.cancel}
-        onSetMarker={(index) => onSetMarker(index, (activeScreen === 'left' ? leftRef : rightRef).current?.currentTime ?? globalTime)}
-        onJumpToMarker={onJumpToMarker}
-        onClose={() => { if (!pose.running) setPracticeOpen(false); }}
-        showOverlay={overlays[activeScreen]}
-        onOverlayChange={(value) => setOverlays((prev) => ({ ...prev, [activeScreen]: value }))}
-      />
       </div>
     </div>
   );

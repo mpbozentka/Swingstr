@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, readFile, writeFile, symlink, realpath } from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { saveExportOutput } from '../electron/exportOutput.mjs';
+test('native output never overwrites an existing source and blocks library/repo including symlinks', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'swingstr-output-'));
+  const checkout = path.join(directory, 'checkout'), library = path.join(directory, 'library');
+  await mkdir(checkout); await mkdir(library);
+  const original = path.join(directory, 'original.mp4'); await writeFile(original, 'original bytes');
+  const options = { directory, checkout, library, chooseDestination: async()=>({filePath:original}) };
+  const payload = { ext:'mp4',destination:'dialog',bytes:new Uint8Array([1,2,3]).buffer };
+  const result = await saveExportOutput(payload, options);
+  assert.equal(result.path,path.join(await realpath(directory),'original-1.mp4'));
+  assert.equal(await readFile(original,'utf8'),'original bytes');
+  await assert.rejects(saveExportOutput(payload,{...options,chooseDestination:async()=>({filePath:path.join(library,'output.mp4')})}),/outside/);
+  const linked = path.join(directory,'linked'); await symlink(checkout,linked);
+  await assert.rejects(saveExportOutput(payload,{...options,chooseDestination:async()=>({filePath:path.join(linked,'output.mp4')})}),/outside/);
+  assert.deepEqual(await saveExportOutput(payload,{...options,chooseDestination:async()=>({canceled:true})}),{cancelled:true});
+});

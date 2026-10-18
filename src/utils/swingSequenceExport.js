@@ -63,8 +63,6 @@ export async function generateSwingSequence({
     const times = timeArrays[row];
     const rowFrames = [];
 
-    // Save original time to restore later
-    const originalTime = ref.current?.currentTime ?? 0;
 
     for (let i = 0; i < numFrames; i++) {
       const time = times?.[i];
@@ -75,7 +73,8 @@ export async function generateSwingSequence({
     }
 
     // Restore original position
-    ref.current?.seekTo(originalTime);
+    // Dedicated capture media leaves editor time and playing state untouched.
+
     capturedRows.push(rowFrames);
   }
 
@@ -162,7 +161,7 @@ export async function generateSwingSequence({
           // (which read videoRect for drawImage) cover the full cell.
           const cellVideoRect = { x: vr.x, y: vr.y, w: vr.w, h: vr.h };
           frame.shapes.forEach((shape) => {
-            renderShape(ctx, shape, { zoomLevel: 1, videoRect: cellVideoRect });
+            renderShape(ctx, shape, { zoomLevel: 1, video: frame.canvas, videoRect: cellVideoRect });
           });
           ctx.restore();
         }

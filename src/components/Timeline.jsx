@@ -55,7 +55,7 @@ export default function Timeline({
   const pct = (t) => `${(t / globalDuration) * 100}%`;
 
   return (
-    <div className="w-full px-3 py-1 flex items-center gap-2">
+    <div className="analysis-timeline w-full px-3 py-1 flex items-center gap-2">
       <button
         onClick={onPrev}
         className="text-gray-300 hover:text-purple-300 transition-colors shrink-0"
@@ -69,7 +69,7 @@ export default function Timeline({
         {globalTime.toFixed(1)}s
       </span>
 
-      <div className="flex-1 relative h-7 flex items-center">
+      <div className="timeline-track flex-1 min-w-0 relative h-7 flex items-center">
         <input
           type="range"
           min="0"
@@ -101,14 +101,14 @@ export default function Timeline({
         {globalDuration > 0 && syncPoints.left != null && (
           <div
             className="absolute top-1/2 -translate-y-1/2 h-3 w-0.5 bg-amber-400/70 z-20 pointer-events-none"
-            style={{ left: pct(syncPoints.left) }}
+            style={{ left: pct(activeScreen === 'left' ? syncPoints.left : syncPoints.left - syncOffset) }}
             title={`L sync: ${syncPoints.left.toFixed(2)}s`}
           />
         )}
         {globalDuration > 0 && syncPoints.right != null && (
           <div
             className="absolute top-1/2 -translate-y-1/2 h-3 w-0.5 bg-amber-500/70 z-20 pointer-events-none"
-            style={{ left: pct(syncPoints.right) }}
+            style={{ left: pct(activeScreen === 'right' ? syncPoints.right : syncPoints.right + syncOffset) }}
             title={`R sync: ${syncPoints.right.toFixed(2)}s`}
           />
         )}
@@ -121,8 +121,8 @@ export default function Timeline({
           return (
             <button
               key={`${m.side}-${m.index}`}
-              onClick={() => onJumpTo(m.index)}
-              className={`absolute group z-30 ${m.side === 'left' ? 'top-0' : 'bottom-0'}`}
+              onClick={() => onJumpTo(m.index, m.side)}
+              className={`timeline-marker absolute group z-30 ${m.side === 'left' ? 'top-0' : 'bottom-0'}`}
               style={{ left: pct(m.t), transform: 'translateX(-50%)' }}
               title={`${m.side === 'left' ? 'L' : 'R'} ${m.label} (${m.t.toFixed(2)}s)`}
             >
@@ -152,7 +152,7 @@ export default function Timeline({
       {/* Which colour is which video — only worth the space when both are on
           the track at once. */}
       {showOther && (
-        <div className="flex items-center gap-2 shrink-0 text-[10px]">
+        <div className="timeline-legend flex items-center gap-2 shrink-0 text-[10px]">
           <span className="flex items-center gap-1" style={{ color: SIDE_COLORS.left }}>
             <span className="w-2 h-2 rotate-45 inline-block" style={{ backgroundColor: SIDE_COLORS.left }} />L
           </span>
@@ -172,7 +172,7 @@ export default function Timeline({
       </button>
 
       {/* Set marker dropdown */}
-      <div className="relative shrink-0">
+      <div className="bookmark-control relative shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -196,7 +196,7 @@ export default function Timeline({
             <div className="text-xs text-gray-400 font-medium mb-1 px-1">
               Set bookmark at {globalTime.toFixed(2)}s
             </div>
-            <div className="max-h-60 overflow-y-auto">
+            <div className="bookmark-slots max-h-60 overflow-y-auto">
               {DEFAULT_MARKER_LABELS.map((label, i) => {
                 const existing = activeMarkers.find((m) => m.index === i);
                 return (
