@@ -45,13 +45,12 @@ const VideoCanvas = forwardRef(
     const sourceId = src;
     const [drawingScope, setDrawingScope] = useState({ kind: 'all' });
     const [scopeError, setScopeError] = useState('');
-    const [showAngleLabel, setShowAngleLabel] = useState(false);
     const currentRect = () => computeVideoRect(videoRef.current, containerRef.current);
     const displayed = (shape) => shape.coordinates === 'source' ? mapShape(shape, ({ x, y }) => { const r = currentRect(); return { x: r.x + x * r.w, y: r.y + y * r.h }; }) : shape;
     const canonical = (shape) => ({ ...shapeToVideo(shape, currentRect()), coordinates: 'source' });
     const eligible = (shape) => annotationVisible(shape, { time: videoRef.current?.currentTime ?? 0, frame: frameRef.current, markers });
     const currentVisibility = () => drawingScope.kind === 'frame' ? { kind: 'frame', mediaTime: frameRef.current?.mediaTime } : { ...drawingScope };
-    const metadata = () => ({ id: crypto.randomUUID(), sourceId, visibility: currentVisibility(), showAngleLabel });
+    const metadata = () => ({ id: crypto.randomUUID(), sourceId, visibility: currentVisibility(), showAngleLabel: false });
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
 
@@ -674,18 +673,6 @@ const VideoCanvas = forwardRef(
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {src && <div className="absolute top-3 left-3 z-50 bg-gray-900/90 p-2 rounded text-xs flex flex-wrap gap-2 max-w-[80%]" onPointerDown={(e) => e.stopPropagation()}>
-          <label>Drawing scope <select aria-label="Drawing scope" className="bg-gray-800" value={drawingScope.kind} onChange={(e) => {
-            const kind = e.target.value;
-            setDrawingScope(kind === 'frame' ? { kind, mediaTime: frameRef.current.mediaTime } : kind === 'range' ? { kind, start: videoRef.current.currentTime, end: Math.min(videoRef.current.duration, videoRef.current.currentTime + 0.2) } : kind === 'positions' ? { kind, from: 4, to: 6 } : { kind });
-          }}><option value="all">Throughout source</option><option value="frame" disabled={!frameRef.current?.mediaTime && frameRef.current?.mediaTime !== 0}>This decoded frame</option><option value="range">Time range</option><option value="positions">Checkpoint range</option></select></label>
-          {drawingScope.kind === 'range' && ['start', 'end'].map((key) => <label key={key}>{key}<input className="bg-gray-800 w-16" type="number" step="0.01" value={drawingScope[key]} onChange={(e) => setDrawingScope({ ...drawingScope, [key]: Number(e.target.value) })} /></label>)}
-          {drawingScope.kind === 'positions' && ['from', 'to'].map((key) => <label key={key}>{key}<select className="bg-gray-800" value={drawingScope[key]} onChange={(e) => setDrawingScope({ ...drawingScope, [key]: Number(e.target.value) })}>{Array.from({ length: 10 }, (_, i) => <option key={i} value={i}>P{i + 1}</option>)}</select></label>)}
-          {shapes.length > 0 && <select aria-label="Select drawing including hidden" className="bg-gray-800 max-w-32" value={selectedIndex} onChange={(e) => setSelectedIndex(Number(e.target.value))}><option value={-1}>Drawing list</option>{shapes.map((shape, i) => <option key={shape.id} value={i}>{i + 1} {shape.type} {eligible(shape) ? '' : '(hidden / unresolved)'}</option>)}</select>}
-          <label><input type="checkbox" checked={showAngleLabel} onChange={(e) => setShowAngleLabel(e.target.checked)} />Angle number</label>
-          {selectedIndex >= 0 && <button onClick={() => setShapes((prev) => prev.map((shape, i) => i === selectedIndex ? { ...shape, visibility: drawingScope.kind === 'frame' ? { kind: 'frame', mediaTime: frameRef.current?.mediaTime } : { ...drawingScope }, showAngleLabel } : shape))}>Apply to selected</button>}
-          {selectedIndex >= 0 && <button onClick={() => { setShapes((prev) => prev.filter((_, i) => i !== selectedIndex)); setSelectedIndex(-1); }}>Remove selected drawing</button>}
-        </div>}
         {scopeError && <p role="alert" className="absolute top-20 left-3 z-50 text-red-300 bg-gray-900 p-2">{scopeError}</p>}
         {isDragOver && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-purple-500/20 border-4 border-dashed border-purple-400 pointer-events-none">
