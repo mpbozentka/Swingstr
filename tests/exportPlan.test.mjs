@@ -4,7 +4,7 @@ import { resolveSegment, annotationVisible, validateVisibility } from '../src/ut
 import { resolveExportPlan, mapExportTime } from '../src/utils/exportPlan.js';
 import { calculateAngle, renderShape } from '../src/utils/shapeRenderer.js';
 import { mapShape } from '../src/utils/controlShapes.js';
-import { updateShapeWithHandle } from '../src/utils/shapeEditing.js';
+import { updateShapeWithHandle, getHandlesForShape, hitTestShape } from '../src/utils/shapeEditing.js';
 import { validateCommand } from '../mcp/tools.mjs';
 const source = (start = 0.3, end = 1.5, anchor = 1) => ({ ready: true, duration: 3, sourceId: 'test', selection: { kind: 'times', start, end }, markers: [{ index: 4, time: start }, { index: 6, time: anchor }, { index: 7, time: end }], drawings: [] });
 
@@ -77,4 +77,31 @@ test('drawing scopes reject unavailable precision and out-of-source timing', () 
   assert.throws(() => validateVisibility({ kind: 'frame', mediaTime: .5 }, 3, false), /unsupported/);
   assert.throws(() => validateVisibility({ kind: 'range', start: 2, end: 4 }, 3, true), /source duration/);
   assert.throws(() => validateVisibility({ kind: 'positions', from: 4.5, to: 7 }, 3, true), /positions/);
+});
+
+test('emoji stamps remain selectable, movable, resizable and render at export resolution', () => {
+  for (const emoji of ['✅', '❌']) {
+    const shape = { type: 'emoji', emoji, id: 'stamp', color: '#ff3333', width: 3,
+      start: { x: .2, y: .3 }, end: { x: .3, y: .4 }, visibility: { kind: 'all' } };
+    const shown = mapShape(shape, ({ x, y }) => ({ x: x * 1000, y: y * 1000 }));
+    assert.equal(hitTestShape({ x: 250, y: 350 }, shown, 1), true);
+    assert.equal(hitTestShape({ x: 500, y: 500 }, shown, 1), false);
+    assert.equal(getHandlesForShape(shown, 1).length, 5);
+    const moved = updateShapeWithHandle(shown, 'move', { x: 500, y: 600 });
+    assert.deepEqual(moved.start, { x: 450, y: 550 });
+    assert.deepEqual(moved.end, { x: 550, y: 650 });
+    const resized = updateShapeWithHandle(moved, 'br', { x: 650, y: 750 });
+    assert.equal(resized.emoji, emoji);
+    assert.equal(resized.id, 'stamp');
+    assert.deepEqual(resized.visibility, shape.visibility);
+    const calls = [];
+    const ctx = { save() {}, restore() {}, beginPath() {}, fillText(...args) { calls.push(args); } };
+    renderShape(ctx, resized, { zoomLevel: 1 });
+    assert.deepEqual(calls, [[emoji, 550, 650]]);
+    assert.match(ctx.font, /^200px "Apple Color Emoji"/);
+    const exported = mapShape(resized, ({ x, y }) => ({ x: x * 2, y: y * 2 }));
+    renderShape(ctx, exported, { zoomLevel: 1 });
+    assert.deepEqual(calls[1], [emoji, 1100, 1300]);
+    assert.match(ctx.font, /^400px/);
+  }
 });

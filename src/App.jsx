@@ -48,7 +48,7 @@ export default function Swingstr() {
   // Side currently waiting on a URL input (null when modal closed)
   const [urlPromptSide, setUrlPromptSide] = useState(null);
   const [tool, setTool] = useState('move');
-  const [color, setColor] = useState('#155e75');
+  const [color, setColor] = useState('#ff3333');
   const [lineWidth, setLineWidth] = useState(3);
   const [speed, setSpeed] = useState(1.0);
   const [activeMenu, setActiveMenu] = useState(null);

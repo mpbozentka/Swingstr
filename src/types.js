@@ -20,12 +20,12 @@
  */
 
 /**
- * @typedef {'line' | 'vline' | 'rect' | 'circle' | 'blur' | 'free' | 'angle'} ShapeType
+ * @typedef {'line' | 'vline' | 'rect' | 'circle' | 'blur' | 'free' | 'angle' | 'emoji'} ShapeType
  */
 
 /**
  * Discriminated union over shape types. Some fields are only present on
- * certain types — `start`/`end` for line/vline/rect/circle/blur, `points` for free,
+ * certain types — `start`/`end` for line/vline/rect/circle/blur/emoji, `points` for free,
  * `p1`/`p2`/`p3` for angle.
  *
  * @typedef {Object} Shape
@@ -37,6 +37,7 @@
  * @property {{kind:'all'}|{kind:'frame',mediaTime:number}|{kind:'range',start:number,end:number}|{kind:'positions',from:number,to:number}} visibility - Source timing; internal position indices 0..9
  * @property {boolean} showAngleLabel - Numeric label off unless explicitly true
  * @property {ShapeType} type
+ * @property {string} [emoji] - Native emoji glyph for emoji stamps
  * @property {string} color
  * @property {number} width
  * @property {Point} [start]

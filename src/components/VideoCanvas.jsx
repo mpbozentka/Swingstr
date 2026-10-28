@@ -509,11 +509,9 @@ const VideoCanvas = forwardRef(
           setSelectedIndex(idx);
           return;
         }
-        // (#10) The first click in empty space deselects only — don't fall
-        // through and start a new stroke at the same position. The user can
-        // click again to begin drawing.
+        // Stamps place immediately; other drawing tools deselect first.
         setSelectedIndex(-1);
-        return;
+        if (!tool.startsWith('emoji:')) return;
       }
       if (tool === 'select') {
         const idx = findShapeAtPos(pos, shapes.map((s) => eligible(s) ? displayed(s) : { type: 'hidden' }), zoomLevel);
@@ -522,6 +520,24 @@ const VideoCanvas = forwardRef(
       }
       try { validateVisibility(currentVisibility(), videoRef.current.duration, frameRef.current?.mediaTime != null); setScopeError(''); } catch (error) { setScopeError(error.message); return; }
       if (videoRef.current) videoRef.current.pause();
+      if (tool.startsWith('emoji:')) {
+        const halfSize = 24 / zoomLevel;
+        const shape = canonical({
+          ...metadata(),
+          type: 'emoji',
+          emoji: tool.slice(6),
+          start: { x: pos.x - halfSize, y: pos.y - halfSize },
+          end: { x: pos.x + halfSize, y: pos.y + halfSize },
+          color,
+          width: lineWidth,
+        });
+        setShapes((prev) => {
+          const next = [...prev, shape];
+          setSelectedIndex(next.length - 1);
+          return next;
+        });
+        return;
+      }
       if (tool === 'angle') {
         const newPoints = [...points, pos];
         setPoints(newPoints);

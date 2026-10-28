@@ -25,6 +25,16 @@ export function renderShape(ctx, shape, { zoomLevel, video, videoRect, blurPx = 
       ctx.lineTo(shape.end.x, shape.end.y);
       ctx.stroke();
       break;
+    case 'emoji': {
+      const size = Math.min(Math.abs(shape.end.x - shape.start.x), Math.abs(shape.end.y - shape.start.y));
+      if (size > 0) {
+        ctx.font = `${size}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(shape.emoji, (shape.start.x + shape.end.x) / 2, (shape.start.y + shape.end.y) / 2);
+      }
+      break;
+    }
     case 'rect':
       ctx.strokeRect(
         shape.start.x,

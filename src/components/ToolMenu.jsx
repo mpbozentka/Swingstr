@@ -64,6 +64,27 @@ export default function ToolMenu({ tool, setTool, onClose, positionClass = 'abso
         </IconButton>
       </div>
       <div className="h-px bg-gray-700 my-1" />
+      <div className="text-xs font-bold text-gray-500 px-2 uppercase tracking-wider">
+        Emoji
+      </div>
+      <div className="grid grid-cols-4 gap-1">
+        {[
+          ['✅', 'Green check mark'], ['❌', 'Red X'],
+          ['👍', 'Thumbs up'], ['👎', 'Thumbs down'],
+          ['🎯', 'Target'], ['⭐', 'Star'],
+        ].map(([emoji, label]) => (
+          <IconButton
+            key={emoji}
+            onClick={() => setAndClose(`emoji:${emoji}`)}
+            active={tool === `emoji:${emoji}`}
+            title={label}
+          >
+            <span className="text-xl" style={{ fontFamily: '"Apple Color Emoji", "Segoe UI Emoji", sans-serif' }}>{emoji}</span>
+          </IconButton>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 px-2">Choose an emoji, then tap the video. Drag its center to move or corners to resize.</p>
+      <div className="h-px bg-gray-700 my-1" />
       <div className="text-xs font-bold text-gray-500 px-2 mb-1 uppercase tracking-wider">
         Privacy
       </div>

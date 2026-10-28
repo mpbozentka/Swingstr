@@ -1,6 +1,14 @@
 import React from 'react';
 
-const STROKE_COLORS = ['#155e75', '#9a3412', '#854d0e'];
+const STROKE_COLORS = [
+  { name: 'Red', value: '#ff3333' },
+  { name: 'Orange', value: '#ff9500' },
+  { name: 'Yellow', value: '#ffff00' },
+  { name: 'Green', value: '#00ff00' },
+  { name: 'Blue', value: '#0080ff' },
+  { name: 'Indigo', value: '#6366ff' },
+  { name: 'Violet', value: '#bf00ff' },
+];
 
 export default function StyleMenu({ color, setColor, lineWidth, setLineWidth, positionClass = 'absolute bottom-16 left-32' }) {
   return (
@@ -9,13 +17,14 @@ export default function StyleMenu({ color, setColor, lineWidth, setLineWidth, po
         Stroke Color
       </div>
       <div className="flex gap-2 mb-4">
-        {STROKE_COLORS.map((c) => (
+        {STROKE_COLORS.map(({ name, value: c }) => (
           <button
             key={c}
             onClick={() => setColor(c)}
-            aria-label={`Stroke color ${c}`}
+            aria-label={`${name} stroke color`}
+            title={name}
             aria-pressed={color === c}
-            className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${color === c
+            className={`w-6 h-6 shrink-0 rounded-full border-2 transition-transform hover:scale-110 ${color === c
                 ? 'border-white scale-110 ring-2 ring-purple-500'
                 : 'border-transparent'
               }`}

@@ -134,7 +134,7 @@ export default function LeftRail({
       <div ref={toolsAnchorRef}>
         <RailButton
           onClick={() => toggleMenu('tools')}
-          active={DRAW_TOOLS.includes(tool) || activeMenu === 'tools'}
+          active={DRAW_TOOLS.includes(tool) || tool.startsWith('emoji:') || activeMenu === 'tools'}
           title="Drawing tools"
           aria-label="Drawing tools"
         >

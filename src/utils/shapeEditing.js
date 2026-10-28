@@ -49,12 +49,14 @@ export function getHandlesForShape(shape, zoomLevel) {
       handles.push({ id: 'start', x: shape.start.x, y: shape.start.y, r });
       handles.push({ id: 'end', x: shape.end.x, y: shape.end.y, r });
       break;
+    case 'emoji':
     case 'rect':
     case 'blur': {
       const minX = Math.min(shape.start.x, shape.end.x);
       const maxX = Math.max(shape.start.x, shape.end.x);
       const minY = Math.min(shape.start.y, shape.end.y);
       const maxY = Math.max(shape.start.y, shape.end.y);
+      if (shape.type === 'emoji') handles.push({ id: 'move', x: (minX + maxX) / 2, y: (minY + maxY) / 2, r });
       handles.push({ id: 'tl', x: minX, y: minY, r });
       handles.push({ id: 'tr', x: maxX, y: minY, r });
       handles.push({ id: 'br', x: maxX, y: maxY, r });
@@ -102,6 +104,7 @@ export function hitTestShape(pos, shape, zoomLevel) {
     case 'line':
     case 'vline':
       return distToSegment(pos.x, pos.y, shape.start.x, shape.start.y, shape.end.x, shape.end.y) <= HIT_RADIUS / zoomLevel;
+    case 'emoji':
     case 'rect': {
       const x = shape.start.x;
       const y = shape.start.y;
@@ -163,13 +166,20 @@ export function updateShapeWithHandle(shape, handleId, newPos) {
       next.start = { x: newPos.x, y: handleId === 'start' ? newPos.y : shape.start.y };
       next.end = { x: newPos.x, y: handleId === 'end' ? newPos.y : shape.end.y };
       break;
+    case 'emoji':
     case 'rect':
     case 'blur': {
       const minX = Math.min(shape.start.x, shape.end.x);
       const maxX = Math.max(shape.start.x, shape.end.x);
       const minY = Math.min(shape.start.y, shape.end.y);
       const maxY = Math.max(shape.start.y, shape.end.y);
-      if (handleId === 'tl') { next.start = { x: newPos.x, y: newPos.y }; next.end = { x: maxX, y: maxY }; }
+      if (handleId === 'move' && shape.type === 'emoji') {
+        const dx = newPos.x - (minX + maxX) / 2;
+        const dy = newPos.y - (minY + maxY) / 2;
+        next.start = { x: shape.start.x + dx, y: shape.start.y + dy };
+        next.end = { x: shape.end.x + dx, y: shape.end.y + dy };
+      }
+      else if (handleId === 'tl') { next.start = { x: newPos.x, y: newPos.y }; next.end = { x: maxX, y: maxY }; }
       else if (handleId === 'tr') { next.start = { x: minX, y: newPos.y }; next.end = { x: newPos.x, y: maxY }; }
       else if (handleId === 'br') { next.start = { x: minX, y: minY }; next.end = { x: newPos.x, y: newPos.y }; }
       else if (handleId === 'bl') { next.start = { x: newPos.x, y: minY }; next.end = { x: maxX, y: newPos.y }; }
