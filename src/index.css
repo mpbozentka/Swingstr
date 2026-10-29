@@ -21,25 +21,46 @@ body {
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
   }
 
+  /* No header row on phones: the bird logo, the tools pencil and the
+     "View & tools" menu icon float in a row over the video's top-left. */
   .analyzer-header {
-    height: 56px;
-    position: relative;
-    padding-inline: 12px;
+    position: absolute;
+    top: env(safe-area-inset-top, 0px);
+    left: env(safe-area-inset-left, 0px);
+    right: env(safe-area-inset-right, 0px);
+    height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
     z-index: 80;
   }
-
-  .mobile-header-toggle { display: flex; min-height: 44px; }
-  .analyzer-header > div:first-child { min-width: 0; gap: 8px; }
-  .analyzer-header > div:first-child > div { gap: 8px; }
-  .analyzer-header h1 { font-size: 16px; }
-  .analyzer-header > div:first-child > button { font-size: 0; padding: 8px; }
-  .analyzer-header > div:first-child > button svg { width: 20px; height: 20px; }
+  .analyzer-header > div:first-child { position: absolute; top: 17px; left: 12px; }
+  .analyzer-header > div:first-child h1,
+  .analyzer-header > div:first-child > button { display: none; }
+  .analyzer-header img { width: 44px; height: 44px; }
+  .mobile-header-toggle {
+    display: flex;
+    position: absolute;
+    top: 17px;
+    left: 118px;
+    width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 0;
+    border-radius: 12px;
+    border: 1px solid #ffffff1a;
+    background: #111827b3;
+  }
+  .analyzer-shell:has(.mobile-pane-switch) .analyzer-header > div:first-child,
+  .analyzer-shell:has(.mobile-pane-switch) .mobile-header-toggle { top: 68px; }
 
   .analyzer-header-options { display: none; }
   .analyzer-header-options.is-open {
     display: flex;
     position: absolute;
-    top: 100%;
+    top: 68px;
     left: 8px;
     right: 8px;
     flex-direction: column;
@@ -52,35 +73,35 @@ body {
     border-radius: 12px;
     box-shadow: 0 12px 24px #0008;
   }
+  .analyzer-shell:has(.mobile-pane-switch) .analyzer-header-options.is-open { top: 120px; }
   .analyzer-header-options > div { flex-wrap: wrap; gap: 8px; }
   .analyzer-header-options button { min-height: 44px; min-width: 44px; }
   .analyzer-header-options span { overflow-wrap: anywhere; }
-  .editing-tools-panel { max-height: 25dvh; overflow-y: auto; }
-  .editing-tools-panel button, .editing-tools-panel input, .editing-tools-panel select { min-height: 44px; }
+  /* Segment editing and trimming are desktop-only. */
+  .analyzer-header-options button[aria-controls="video-editing-tools"],
+  .editing-tools-panel { display: none; }
 
-  .analysis-workspace { flex-direction: column; }
+  .analysis-workspace { flex-direction: column; -webkit-user-select: none; user-select: none; }
   .analyzer-main { flex-direction: column; }
   .analysis-panes { overflow: hidden; }
+  /* Tools fold behind one floating pencil in the video's top-left corner. */
   .analysis-rail {
-    position: relative;
-    inset: auto;
+    top: 12px;
+    left: 64px;
     transform: none;
-    flex-direction: row;
-    flex-shrink: 0;
-    width: 100%;
-    max-height: none;
-    min-height: 56px;
-    padding: 6px 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    border-radius: 0;
-    background: #111827;
+    width: auto;
+    max-height: calc(100% - 24px);
+    padding: 4px;
   }
-  .analysis-rail > * { flex-shrink: 0; }
-  .analysis-rail > .h-px { width: 1px; height: 28px; margin: 0 4px; }
-  .rail-button { height: 44px; }
-  .analyzer-shell[data-editing-open=false] .analysis-rail > button[aria-label^="Set trim"],
-  .analyzer-shell[data-editing-open=false] .analysis-rail > button[aria-label="Clear trim"],
+  .mobile-pane-switch ~ .analysis-rail { top: 64px; max-height: calc(100% - 76px); }
+  .analysis-rail[data-phone-open=false] { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
+  .analysis-rail[data-phone-open=false] > :not(.rail-toggle) { display: none; }
+  .rail-toggle { display: flex; }
+  .analysis-rail[data-phone-open=false] .rail-toggle { background: #111827b3; }
+  .rail-button { width: 44px; height: 44px; }
+  .analysis-rail > button[aria-label="Set trim end"] ~ .h-px { display: none; }
+  .analysis-rail[data-phone-open] > button[aria-label^="Set trim"],
+  .analysis-rail > button[aria-label="Clear trim"],
   .analysis-rail button[aria-label="Video saving disabled on website"] { display: none; }
   .active-pane-badge { top: auto; bottom: 12px; }
   .rail-flyout { max-height: calc(100dvh - 16px); overflow-y: auto; }
@@ -97,28 +118,38 @@ body {
     background: #111827;
   }
   .transport-resize { display: none; }
-  .analysis-timeline {
+  /* Two slim rows: scrubber on top, then checkpoints, times, frame-step,
+     play and bookmark on one line. The timeline's own children join the
+     transport grid so the play buttons can sit between the two times. */
+  .analysis-transport {
     display: grid;
-    grid-template-columns: 44px 1fr 1fr 44px 48px;
+    grid-template-columns: 36px auto 1fr auto 36px 40px;
+    align-items: center;
     gap: 0 4px;
-    padding: 0 12px;
+    padding: 0 8px env(safe-area-inset-bottom, 0px);
   }
-  .timeline-track { grid-column: 1 / -1; order: -1; height: 36px; }
-  .timeline-track input { height: 36px; background: transparent; }
+  .analysis-timeline { display: contents; }
+  .timeline-track { grid-column: 1 / -1; grid-row: 1; height: 28px; }
+  .analysis-timeline > button:first-of-type { grid-column: 1; grid-row: 2; }
+  .analysis-timeline > span:nth-of-type(1) { grid-column: 2; grid-row: 2; }
+  .transport-buttons { grid-column: 3; grid-row: 2; }
+  .analysis-timeline > span:nth-of-type(2) { grid-column: 4; grid-row: 2; }
+  .analysis-timeline > button:last-of-type { grid-column: 5; grid-row: 2; }
+  .bookmark-control { grid-column: 6; grid-row: 2; }
+  .timeline-track input { height: 28px; background: transparent; }
   .timeline-track input::-webkit-slider-runnable-track { height: 6px; background: #ffffff40; border-radius: 3px; }
   .timeline-track input::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; margin-top: -7px; border-radius: 50%; background: #c084fc; }
   .timeline-track input::-moz-range-track { height: 6px; background: #ffffff40; border-radius: 3px; }
   .timeline-track input::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #c084fc; }
-  .analysis-timeline > button, .bookmark-control > button { min-height: 44px; width: 100%; display: flex; align-items: center; justify-content: center; }
+  .analysis-timeline > button, .bookmark-control > button { min-height: 40px; width: 100%; display: flex; align-items: center; justify-content: center; }
   .analysis-timeline > span { width: auto; }
-  .analysis-timeline > span:nth-of-type(2) { text-align: right; }
   .timeline-legend { display: none; }
   .timeline-marker { min-width: 24px; min-height: 24px; display: flex; align-items: center; justify-content: center; }
   .bookmark-slots { max-height: min(240px, 42dvh); }
   .bookmark-slots button { min-height: 44px; }
   .bookmark-slots button:has(svg) { min-width: 44px; opacity: 1; }
-  .transport-buttons { gap: 24px; padding-bottom: 4px; }
-  .transport-buttons button { width: 44px; height: 44px; }
+  .transport-buttons { gap: 12px; padding-bottom: 4px; }
+  .transport-buttons button { width: 40px; height: 40px; }
 
   .export-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
   .export-header { padding: 8px; gap: 4px; }
@@ -147,7 +178,7 @@ body {
 
 @media (max-width: 1023px) and (orientation: landscape) and (max-height: 500px) {
   .analysis-workspace { flex-direction: row; }
-  .analysis-transport { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .analysis-transport { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .analysis-timeline { display: flex; flex: 1 1 400px; min-width: 0; }
   .timeline-track { order: 0; }
   .analysis-timeline > span { width: 40px; }

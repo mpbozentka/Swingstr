@@ -9,6 +9,9 @@ Keep drawing and playback controls available when the editing bar is hidden.
 Do not overlay the drawing-scope, drawing-list, or angle-number settings bar
 on the video. Mitchell requested its removal on 2026-10-27 because it
 covered the analysis view.
+On phones, segment editing and trim are removed entirely, and the logo, tools
+and "View & tools" menu float over the video's top-left instead of a header
+row (Mitchell, 2026-10-29). Desktop keeps the editing bar and trim.
 Use bright ROYGBIV drawing presets so annotations stand out on video
 (Mitchell’s preference, 2026-10-28).
 

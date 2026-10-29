@@ -13,6 +13,13 @@ import { annotationVisible, validateVisibility } from '../utils/annotationTiming
 import { seekDecoded, createExportVideo, releaseVideo } from '../utils/decodedVideo';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
+// crypto.randomUUID only exists on https/localhost; phones testing the dev
+// server over plain http on the LAN don't have it.
+const newId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const VideoCanvas = forwardRef(
   (
     {
@@ -40,6 +47,7 @@ const VideoCanvas = forwardRef(
     ref
   ) => {
     const videoRef = useRef(null);
+    const surfaceRef = useRef(null);
     const frameRef = useRef(null);
     const sourceRef = useRef(null);
     const sourceId = src;
@@ -50,7 +58,7 @@ const VideoCanvas = forwardRef(
     const canonical = (shape) => ({ ...shapeToVideo(shape, currentRect()), coordinates: 'source' });
     const eligible = (shape) => annotationVisible(shape, { time: videoRef.current?.currentTime ?? 0, frame: frameRef.current, markers });
     const currentVisibility = () => drawingScope.kind === 'frame' ? { kind: 'frame', mediaTime: frameRef.current?.mediaTime } : { ...drawingScope };
-    const metadata = () => ({ id: crypto.randomUUID(), sourceId, visibility: currentVisibility(), showAngleLabel: false });
+    const metadata = () => ({ id: newId(), sourceId, visibility: currentVisibility(), showAngleLabel: false });
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
 
@@ -315,7 +323,7 @@ const VideoCanvas = forwardRef(
           const geometry = shapeFromCommand(args, { x: 0, y: 0, w: 1, h: 1 }, { color: previous?.color ?? defaults.color, width: previous?.width ?? defaults.width });
           const visibility = args.visibility ?? previous?.visibility ?? (frameRef.current?.mediaTime != null ? { kind: 'frame', mediaTime: frameRef.current.mediaTime } : { kind: 'all' });
           validateVisibility(visibility, video.duration, frameRef.current?.mediaTime != null);
-          const shape = { ...previous, ...geometry, id: previous?.id ?? crypto.randomUUID(), sourceId, coordinates: 'source', visibility, showAngleLabel: args.showAngleLabel ?? previous?.showAngleLabel ?? false };
+          const shape = { ...previous, ...geometry, id: previous?.id ?? newId(), sourceId, coordinates: 'source', visibility, showAngleLabel: args.showAngleLabel ?? previous?.showAngleLabel ?? false };
           next[index] = shape; shapesRef.current = next; setShapes(next); setSelectedIndex(-1);
           return { index, ...shape };
         },
@@ -457,6 +465,24 @@ const VideoCanvas = forwardRef(
       if (containerRef.current) observer.observe(containerRef.current);
       return () => { cancelAnimationFrame(anim); observer.disconnect(); };
     }, [draw]);
+
+    // iPhone Safari treats a finger drag on the video as a text-selection or
+    // page-drag gesture and never hands it to the drawing tools. Only a
+    // non-passive native touch listener can veto that (React's are passive).
+    // Buttons and the upload picker still need their taps, so skip those.
+    useEffect(() => {
+      const surface = surfaceRef.current;
+      if (!surface || !src) return;
+      const block = (e) => {
+        if (!e.target.closest('button, label, input, a')) e.preventDefault();
+      };
+      surface.addEventListener('touchstart', block, { passive: false });
+      surface.addEventListener('touchmove', block, { passive: false });
+      return () => {
+        surface.removeEventListener('touchstart', block);
+        surface.removeEventListener('touchmove', block);
+      };
+    }, [src]);
 
     const getEventCoords = (e) => {
       if (e.touches?.[0]) {
@@ -696,12 +722,16 @@ const VideoCanvas = forwardRef(
           </div>
         )}
         <div
-          className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair"
-          style={{ touchAction: 'none' }}
+          ref={surfaceRef}
+          className="relative flex-1 w-full h-full overflow-hidden cursor-crosshair select-none"
+          style={{ touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
+          // A captured finger never really leaves, but iPhone Safari reports a
+          // leave as soon as the drag starts, which ended every stroke at its
+          // first point. Fingers finish on pointerup/cancel instead.
+          onPointerLeave={(e) => { if (e.pointerType !== 'touch') handlePointerUp(); }}
           onPointerCancel={handlePointerUp}
         >
           {!src && (

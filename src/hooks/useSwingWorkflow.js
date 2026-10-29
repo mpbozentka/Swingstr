@@ -3,6 +3,13 @@ import { resolveSegment } from '../utils/annotationTiming';
 import { resolveExportPlan, mapExportTime } from '../utils/exportPlan';
 import { recordClip, pickRecordingType } from '../utils/videoClipExport';
 
+// crypto.randomUUID only exists on https/localhost; phones testing the dev
+// server over plain http on the LAN don't have it.
+const newId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 export function useSwingWorkflow({ leftRef, rightRef, markers, setMarker, removeMarker, leftVideo, rightVideo }) {
   const [selections, setSelections] = useState({ left: null, right: null });
   const [comparison, setComparison] = useState({ mode: 'independent' });
@@ -69,7 +76,7 @@ export function useSwingWorkflow({ leftRef, rightRef, markers, setMarker, remove
     if (activeJob.current) throw new Error(`Export already active: ${activeJob.current.jobId}`);
     const plan = structuredClone(recipe(options));
 
-    const jobId = crypto.randomUUID(), controller = new AbortController();
+    const jobId = newId(), controller = new AbortController();
     activeJob.current = { jobId, controller };
     const initial = { jobId, status: 'queued', progress: 0, resolvedRecipe: plan, expectedDuration: plan.expectedDuration };
     updateJob(initial);

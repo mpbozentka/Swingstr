@@ -11,6 +11,7 @@ import {
   X,
   Download,
   Save,
+  Pencil,
 } from 'lucide-react';
 import ToolMenu from './ToolMenu';
 import StyleMenu from './StyleMenu';
@@ -112,6 +113,8 @@ export default function LeftRail({
   const toolsAnchorRef = useRef(null);
   const styleAnchorRef = useRef(null);
   const speedAnchorRef = useRef(null);
+  // Phones only: the whole rail folds behind one floating pencil button.
+  const [phoneOpen, setPhoneOpen] = useState(false);
 
   const toggleMenu = (name) => setActiveMenu(activeMenu === name ? null : name);
   const trimSet = activeTrim.start != null || activeTrim.end != null;
@@ -120,8 +123,20 @@ export default function LeftRail({
     <aside
       aria-label="Video tools"
       className="analysis-rail absolute left-3 top-1/2 -translate-y-1/2 max-h-[calc(100%-1.5rem)] w-14 flex flex-col items-center gap-1 py-2 overflow-y-auto z-40 rounded-2xl bg-gray-900/45 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/50"
+      data-phone-open={phoneOpen}
       onClick={(e) => e.stopPropagation()}
     >
+      <RailButton
+        onClick={() => { setPhoneOpen(!phoneOpen); setActiveMenu(null); }}
+        active={phoneOpen}
+        title={phoneOpen ? 'Hide tools' : 'Show tools'}
+        aria-label={phoneOpen ? 'Hide tools' : 'Show tools'}
+        aria-expanded={phoneOpen}
+        className="rail-toggle hidden"
+      >
+        {phoneOpen ? <X size={18} /> : <Pencil size={18} />}
+      </RailButton>
+
       <RailButton
         onClick={() => setTool('move')}
         active={tool === 'move'}
