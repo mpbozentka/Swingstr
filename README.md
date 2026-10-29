@@ -1,6 +1,12 @@
 # ⛳️ Swingstr
 
-Swingstr is a privacy-focused, professional golf swing analysis platform built for the modern instructor. It combines powerful video comparison tools with a lightweight student CRM, all wrapped in a sleek, responsive interface.
+Swingstr is a golf swing video-review app for instructors: compare swings, control playback, draw annotations, mark P1–P10 checkpoints, trim selections, and export images or clips.
+
+**Live website:** [swingstr.vercel.app](https://swingstr.vercel.app)
+
+The normal website is deployed from this repository's `main` branch to the Vercel project `swingstr`. It uses temporary video sources for analysis and user-initiated downloads. Student profiles and saved-video library access are available only in the Electron desktop app; the website cannot save videos or video links to a library. Existing device library data is preserved.
+
+This release is for manual video review. Automatic body tracking, skeletons, 3D avatars, and biomechanical measurements are not part of the normal website. Experimental biomechanics work is separate and is not included in this release.
 
 ## 🚀 Key Features
 
@@ -8,18 +14,20 @@ Swingstr is a privacy-focused, professional golf swing analysis platform built f
 - **Split-Screen Comparison** — compare two swings side-by-side (Student vs. Pro).
 - **Synchronized Playback** — link videos and play, pause, and scrub together. A drift-correction loop keeps them tempo-locked during play (no manual re-syncing every few seconds).
 - **Sync Points** — set a per-video reference frame (e.g. impact) and the linked playback offsets the right video to keep the two events aligned.
-- **Precision Control** — frame-by-frame stepping (0.05s), variable playback speed (0.25x–2.0x), and independent zooming/panning per screen.
+- **Precision Control** — time-based stepping (0.05s, not exact decoded-frame indexing), variable playback speed (0.25x–2.0x), and independent zooming/panning per screen.
 - **Global Scrubber** — full-width timeline for navigation that doesn't obscure the video.
 
 ### ✏️ Telestration Suite
-- Lines, Angles (3-click), Circles, Boxes, and Freehand drawing.
+- Lines, Vertical Lines, Angles (3-click), Circles, Boxes, and Freehand drawing.
 - **Privacy Blur** — dedicated "Eye Off" tool to blur faces or sensitive details before sharing.
-- Adjustable stroke color and thickness via pop-up menus.
+- Bright **ROYGBIV** stroke presets (red default), a custom color picker, and adjustable thickness via pop-up menus.
+- **Emoji stamps** — ✅, ❌, 👍, 👎, 🎯, and ⭐. Choose Drawing tools → Emoji, then click or tap the video. Drag a stamp's center to move it or its corners to resize it; stamps are included in annotated exports.
+- Editing and comparison setup controls are hidden by default behind **Show editing tools**. Drawing and playback controls remain available. The floating drawing-scope/settings bar is not overlaid on the video.
 - **Selection & Edit** — click any shape to select; drag handles to reshape; click empty space to deselect.
 
-### 🗂️ Student Library (CRM)
+### 🗂️ Student Library (desktop only)
 - Profile management — create, edit, delete student profiles.
-- **Persistent Video Locker** — saved videos go into IndexedDB so they survive a refresh (not blob URLs that die with the tab).
+- **Persistent Video Locker** — native desktop storage under `~/Documents/Swingstr Library`, with saved videos that can be reopened from a student’s page. The website hides the student library and disables saving.
 - Auto-saving Coach's Notes (debounced).
 
 ### 🎯 Swing Sequence Export
@@ -31,38 +39,54 @@ Swingstr is a privacy-focused, professional golf swing analysis platform built f
 - **Framework:** React 19 + Vite
 - **Styling:** Tailwind CSS (dark mode optimized)
 - **Icons:** Lucide React
-- **Persistence:** Versioned localStorage for metadata, IndexedDB for video blobs
+- **Desktop storage:** native filesystem library; browser video/library writes are disabled on the website
 
 ## 🛠️ Getting Started
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 22.12+ (Node.js 24 is used by the production deployment)
 - npm
 
 ### Installation
 ```bash
 git clone https://github.com/mpbozentka/Swingstr.git
 cd Swingstr
-npm install
+npm ci
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5173.
+
+To review a swing on the website, choose **Upload File** or drag a compatible video onto a pane. Use single or split screen, select a drawing tool, and use the bottom playback controls. Open **Show editing tools** for segment selection and comparison alignment. Use **Export swing sequence or video clip** to download the result. Supported video codecs and recording formats depend on the browser.
+
+For optional Google Drive access, copy `.env.example` to `.env`, set your own `VITE_GOOGLE_CLIENT_ID`, and configure its allowed origins in Google Cloud. Basic local-file analysis does not require Google sign-in. Do not commit credentials or private clips.
+
+For the desktop app, build the renderer and launch Electron:
+
+```bash
+npm run desktop:build
+```
+
+`desktop:build` builds `dist/` and opens Electron; it does not create a packaged installer. `npm run desktop` opens Electron using the existing build.
 
 ### Scripts
 - `npm run dev` — start the dev server
 - `npm run build` — production build to `dist/`
 - `npm run preview` — preview the production build
 - `npm run lint` — ESLint + react-hooks rules
+- `npm test` — protocol, drawing, export-plan, seek, and storage regression checks
+- `npm run desktop` — open Electron using the existing renderer build
+- `npm run desktop:build` — build the renderer and open Electron
 
 ## 🎮 Controls & Shortcuts
 
 | Action | Shortcut |
 | --- | --- |
 | Play / Pause | Space |
-| Next / Prev frame | → / ← |
-| Set marker at current time | Shift + 1..0 (1 = Address … 0 = Finish) |
-| Jump to marker | 1..0 |
+| Seek forward / backward by 0.05 seconds | → / ← |
+| Set checkpoint at current time | Hold P + 1..0 (1 = P1/Address … 0 = P10/Finish) |
+| Jump to checkpoint | 1..0 |
+| Previous / next checkpoint | P + ← / →, or < / > |
 | Zoom in/out (active screen) | + / − buttons in header |
 | Pan | Move tool + click & drag |
 | Sync videos | "Linked" button |
@@ -84,9 +108,11 @@ Swingstr/
 │   │   ├── AnalyzerView.jsx  # Main analysis layout (header/main/footer)
 │   │   ├── ScreenPane.jsx    # One half of the split view
 │   │   ├── VideoCanvas.jsx   # Video + drawing overlay + pointer handlers
-│   │   ├── MarkerBar.jsx     # Marker timeline strip
+│   │   ├── Timeline.jsx      # Playback and P1–P10 checkpoint controls
 │   │   ├── StudentLibrary.jsx
-│   │   ├── SwingSequenceModal.jsx
+│   │   ├── ExportModal.jsx    # Image sequences and video-export entry
+│   │   ├── SocialExport.jsx   # Video recipe and recording UI
+│   │   ├── SwingWorkflowControls.jsx
 │   │   ├── SaveModal.jsx
 │   │   ├── EditStudentModal.jsx
 │   │   ├── ConfirmDialog.jsx
@@ -101,7 +127,7 @@ Swingstr/
 │   │   ├── useMarkers.js
 │   │   └── useDebouncedEffect.js
 │   ├── utils/
-│   │   ├── storage.js                 # IndexedDB + versioned localStorage
+│   │   ├── storage.js                 # Desktop library + website write guards
 │   │   ├── url.js                     # Video URL validation
 │   │   ├── shapeRenderer.js           # Canvas drawing for all shape types
 │   │   ├── shapeEditing.js            # Hit-testing and handle math
@@ -113,6 +139,12 @@ Swingstr/
 ├── tailwind.config.js
 └── package.json
 ```
+
+## Production deployment and privacy
+
+The normal site's Vercel project is `swingstr`, linked to `mpbozentka/Swingstr` on GitHub. Production uses `main`, runs `npm run build`, and serves `dist/` at [swingstr.vercel.app](https://swingstr.vercel.app). Verify the deployment's commit and Ready status after pushing; do not deploy the separate experimental branch or a checkout containing its uncommitted changes.
+
+Run `npm test` and `npm run build` before a release, and review lint results. Keep `.vercelignore` protections for saved video files, `students.json`, and the local library. Do not upload source footage or student records to GitHub or Vercel, and do not erase an existing device library during deployment.
 
 ## Local MCP control
 
@@ -153,11 +185,10 @@ radius endpoint. Angles use vertex, first arm endpoint, second arm endpoint.
 Frame stepping uses `frames / fps` seconds (30 fps by default), matching the
 app's time-based stepping rather than promising decoded frame indexing.
 Playback honors the app's active pane, linking and trim controls. Drawings
-pause their selected pane and remain temporary source-relative analysis overlays. New drawings use a decoded-frame scope when supported, with explicit range and throughout-source scopes available. Opening a
+pause their selected pane and remain temporary source-relative analysis overlays. MCP commands can request decoded-frame scope when supported, explicit ranges, or throughout-source visibility. Opening a
 saved swing clears that pane's drawings after the new video is ready.
 
-Run `npm test` for protocol, validation, coordinate mapping and existing
-measurement/storage regressions. The protocol test connects a real MCP client
+Run `npm test` for protocol, validation, coordinate mapping, drawing, export-plan, seek and storage regressions. The protocol test connects a real MCP client
 over stdio to an isolated socket; it never reads or edits the saved library.
 
 ## Short clips and comparison exports
@@ -178,13 +209,13 @@ The common clock preserves equal speed and holds the shorter boundaries,
 labeling those frames Held. Drawing, seeking and changing speed pause that
 clock. Jump both can navigate outside a selection.
 
-Choose the drawing scope before drawing: This decoded frame, Time range,
-Checkpoint range, or Throughout source. The drawing list includes hidden and
-unresolved annotations for repair or individual removal. Apply to selected
-changes its scope and angle-number setting. Shapes stay attached to the source
-through layout changes, letterboxing, resizing, zoom and export framing. New
-angles have no numeric label. Defaults are dark teal, rust and brown; custom
-colors remain available. Frame mode is unavailable without decoded identity;
+The website's drawings default to throughout-source visibility. The removed
+floating scope/settings bar is not part of the video UI. Desktop MCP commands
+can apply decoded-frame, time-range, checkpoint-range, or throughout-source
+visibility and change an annotation's angle-label setting. Shapes stay attached
+to the source through layout changes, letterboxing, resizing, zoom and export
+framing. New angles have no numeric label. Bright ROYGBIV presets and custom
+colors are available. Decoded-frame scope requires decoded identity; keyboard
 frame stepping itself remains a time estimate.
 
 Export > Video uses the current per-pane selections (full source if cleared).
@@ -234,10 +265,8 @@ set both segments P5→P8, configure_comparison aligned at P7, then start_export
 both/portrait/0.5/3/annotated. Poll get_export_status and return the saved path.
 Exports never publish automatically.
 
-## 🔮 Roadmap
+## 🔮 Possible future work (not shipped)
 
-- Desktop app (Electron) for unlimited local storage.
-- Saved-video playback in the Student Library (the persistence layer is in place; the playback UI is next).
 - Voiceover recording (screen + microphone) for remote video lessons.
 - Pinch-to-zoom on touch.
 - Undo/Redo for shapes.
