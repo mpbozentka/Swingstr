@@ -15,6 +15,9 @@ row (Mitchell, 2026-10-29). Desktop keeps the editing bar and trim.
 Use bright ROYGBIV drawing presets so annotations stand out on video
 (Mitchell’s preference, 2026-10-28).
 
+Keep the desktop playback bar at its minimum scale (0.45) by default
+(Mitchell, 2026-10-29). Leave the phone transport on the video-first layout.
+
 ## Analysis scope
 
 Mitchell removed Practice focus and all automatic body tracking on 2026-10-14.

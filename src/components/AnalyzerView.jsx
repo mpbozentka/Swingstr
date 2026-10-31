@@ -32,7 +32,7 @@ import { useEscapeClose } from '../hooks/useEscapeClose';
 // explicit width/height, so the buttons, text and scrub track all shrink
 // together — dragging it smaller actually gets it out of the way instead of
 // just cramming the same big controls into a narrower box.
-const BAR_SCALE_KEY = 'swingstr_bar_scale';
+const BAR_SCALE_KEY = 'swingstr_bar_scale_compact';
 const BAR_SCALE_MIN = 0.45;
 const BAR_SCALE_MAX = 1;
 
@@ -43,9 +43,9 @@ function readBarScale() {
     const saved = parseFloat(localStorage.getItem(BAR_SCALE_KEY));
     if (Number.isFinite(saved)) return clampBarScale(saved);
   } catch {
-    // storage disabled — fall through to full size
+    // storage disabled — fall through to the compact default
   }
-  return BAR_SCALE_MAX;
+  return BAR_SCALE_MIN;
 }
 
 export default function AnalyzerView({
@@ -437,7 +437,7 @@ export default function AnalyzerView({
               no matter how small the bar itself gets. */}
           <div
             onPointerDown={startBarResize}
-            onDoubleClick={() => setBarScale(BAR_SCALE_MAX)}
+            onDoubleClick={() => setBarScale(BAR_SCALE_MIN)}
             role="separator"
             aria-label="Resize control bar"
             title="Drag to resize the control bar — double-click to reset"
