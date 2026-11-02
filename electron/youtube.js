@@ -1,20 +1,28 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, unlinkSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { isYouTubeUrl, extractYouTubeId } from '../src/utils/url.js'
 
+// uv/pipx installs land here. Apps opened from Finder don't get it on PATH.
+const USER_BIN = path.join(os.homedir(), '.local', 'bin')
+
 const YT_DLP_CANDIDATES = [
+  path.join(USER_BIN, 'yt-dlp'),
   '/Library/Frameworks/Python.framework/Versions/3.13/bin/yt-dlp',
   '/opt/homebrew/bin/yt-dlp',
   '/usr/local/bin/yt-dlp',
 ]
 
 const FFMPEG_CANDIDATES = [
+  path.join(USER_BIN, 'ffmpeg'),
   '/opt/homebrew/bin/ffmpeg',
   '/usr/local/bin/ffmpeg',
 ]
 
+// yt-dlp also needs a JavaScript runtime (node) from this PATH for YouTube.
 const EXTRA_PATH = [
+  USER_BIN,
   '/Library/Frameworks/Python.framework/Versions/3.13/bin',
   '/opt/homebrew/bin',
   '/usr/local/bin',

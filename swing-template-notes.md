@@ -5,7 +5,8 @@ become a skill once the template is complete.
 
 ## General
 
-- Views: face-on (started 2026-11-02). Down-the-line: not covered yet.
+- Views: face-on (started 2026-11-02). Down-the-line: P1–P10 bookmarks only
+  (2026-11-02); no lines yet.
 - Club: iron (started here). Driver and wedges: not covered yet.
 - Default style: red `#ff3333`, width 3 (what Mitchell used).
 - **Every line shows for the entire swing** (`visibility: {kind: "all"}`).
@@ -102,20 +103,17 @@ swing. Camera movement must never be read as golfer movement.
   the camera moved. In the 2026-11-02 example, at the top (5.42s) the ball line
   sat in front of the ball (toward the target): the ball was about 14px left
   and 17px higher than at address, so the camera had moved.
-- **Camera reference marks** (yellow `#ffdd00`, width 3, whole swing, kept
-  apart from the red analysis lines):
-  1. **Ball circle:** a small circle around the ball at address
-     (center (0.497, 0.703), radius about 0.015 of the width). If the ball
-     moves out of the circle before impact, the camera moved.
-  2. **Background mark:** a short vertical line on a fixed object in the
-     background, here the middle flagstick on the putting green
-     (x 0.329, y 0.464–0.496). It still works after impact, when the ball is
-     gone. Pick something sharp and still: a flagstick, post or building
-     edge, not trees or clouds.
-- **Correcting for drift:** when reading a position, measure how far the
-  references moved from address (Δx, Δy). Subtract that from what the golfer
+- **Camera reference: the ball only** (Mitchell, 2026-11-02, both views).
+  Don't add a background mark.
+  - **Ball circle:** a small yellow circle (`#ffdd00`, width 3, whole swing,
+    kept apart from the red analysis lines) around the ball at address. In
+    the face-on example: center (0.497, 0.703), radius about 0.015 of the
+    width. If the ball moves out of the circle before impact, the camera
+    moved.
+- **Correcting for drift:** when reading a position, measure how far the ball
+  moved from the circle (Δx, Δy). Subtract that from what the golfer
   appears to do against the analysis lines before judging. Example: if the
-  references shifted 14px toward the trail side of the screen and the head
+  ball shifted 14px toward the trail side of the screen and the head
   also looks 14px toward the trail side of the ball line, the head didn't
   actually move.
   Report the camera drift along with the finding.
@@ -159,3 +157,82 @@ Example read (2026-11-02 swing, P4 at 5.50s): the camera had drifted about
 ### P2, P3, P5–P10
 
 Not given yet.
+
+## Down-the-line: P1–P10 bookmarks
+
+Same P1–P10 definitions as face-on, with these down-the-line adjustments from
+Mitchell's corrections on 2026-11-02.
+
+### Rules
+
+- **P1, address:** the frame before the club moves at all. If the clubhead
+  has already moved behind the ball, it's too late. In the example, Mitchell
+  put P1 at the very start of the video (0.00s).
+- **P2 and P6, perspective:** the camera sits higher than the hands, so the
+  shaft looks flattest a few frames *after* real P2 and a frame *before* real
+  P6. Don't pick the frame where the shaft looks most horizontal on screen.
+  Mitchell's P2 had the clubhead outside the hands, but the shaft didn't look
+  fully flat yet. That's the correct P2 look from this camera height.
+- **P3:** same rule as face-on: lead arm level from shoulder to hands. I was 2
+  frames early.
+- **P4, top:** the last frame before the downswing starts. If the golfer is
+  already pulling the club down, it's too late. I was 2–3 frames late.
+- **P5:** I was 1 frame late.
+- **P6:** there may be no perfect shaft-parallel frame. Pick the closest one,
+  allowing for the perspective issue above.
+- **P7, impact:** if no frame shows the club exactly at the ball, use **the
+  frame just before contact**. My frame still had the club about a foot from
+  the ball. Zoom in on the clubhead and the ball. Don't judge from the full
+  frame.
+- **P8 and P9:** the club and arms are mostly hidden behind the body from
+  down the line, so these are hard to judge. Both of mine were too early.
+  Lean later rather than earlier.
+- **P10, finish:** the golfer has to have settled back down, not just reached
+  the high finish. Mine was early.
+
+### Frame steps
+
+In this video, Mitchell's one-frame corrections moved the marker about 0.05s,
+not 1/60s. Step with Swingstr's own frame step and count frames that way.
+Don't assume 0.0167s per frame.
+
+### Example: 2026-11-02 swing, down the line
+
+| P | Mine | Mitchell's | What he said |
+|---|---|---|---|
+| P1 | 1.250 | 0.000 | Not close; the club was already a foot behind the ball |
+| P2 | 3.083 | 2.933 | 3–4 frames late (camera above the hands) |
+| P3 | 4.117 | 4.217 | 2 frames early |
+| P4 | 5.917 | 5.817 | 2–3 frames late; already forcing the club down |
+| P5 | 6.668 | 6.568 | 1 frame late |
+| P6 | 6.768 | 6.818 | 1 frame early; same perspective issue as P2 |
+| P7 | 6.918 | 6.968 | 1 frame early; club still about a foot from the ball |
+| P8 | 7.252 | 7.352 | Too early; the club is hard to see |
+| P9 | 7.418 | 7.602 | Too early; can't see the arms |
+| P10 | 8.285 | 8.735 | A touch early; he hadn't settled yet |
+
+Mitchell's times were read back from Swingstr (`get_state`) after he moved
+the markers.
+
+### Camera reference mark, down the line
+
+**Use only the ball as the reference** (Mitchell, 2026-11-02). Don't add a
+background mark.
+
+- **Ball circle:** a small circle around the ball at address, drawn at P1 in
+  yellow `#ffdd00`, width 3, for the whole swing, and kept apart from the
+  analysis lines. In the example: center (0.629, 0.597), radius 0.015 of the
+  width.
+- The ball doesn't move until impact, so any shift between the ball and the
+  circle before then is the camera. Measure it on a zoomed crop.
+
+Example drift (2026-11-02 swing):
+
+| Moment | Ball vs. circle |
+|---|---|
+| P4 5.817s | about 7px right, 19px up |
+| P7 6.968s | about 7px right, 21px up (clubhead just behind the ball) |
+
+The camera tilted during the backswing and stayed there. From down the line,
+a 20px vertical drift is enough to fake a head or posture change against a
+head-height or spine line. Subtract it before judging any line.
