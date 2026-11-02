@@ -1,6 +1,9 @@
 import { createServer, connect } from 'node:net';
 import { chmod, lstat, unlink } from 'node:fs/promises';
-import { validateCommand } from './tools.mjs';
+import { commandTimeouts, validateCommand } from './tools.mjs';
+
+const DEFAULT_TIMEOUT = 20000;
+export const timeoutFor = (name) => commandTimeouts[name] ?? DEFAULT_TIMEOUT;
 
 const LIMIT = 16 * 1024 * 1024;
 
@@ -26,7 +29,7 @@ export async function startControlServer(socketPath, dispatch) {
   const server = createServer((socket) => {
     socket.setEncoding('utf8');
     let input = '';
-    socket.setTimeout(20000, () => socket.destroy());
+    socket.setTimeout(DEFAULT_TIMEOUT, () => socket.destroy());
     socket.on('error', () => {});
     socket.on('data', (chunk) => {
       input += chunk.toString();
@@ -38,6 +41,7 @@ export async function startControlServer(socketPath, dispatch) {
         if (socket.destroyed) return;
         try {
           const { name, args } = JSON.parse(input.slice(0, end));
+          socket.setTimeout(timeoutFor(name) + 5000);
           const result = await dispatch(name, validateCommand(name, args));
           socket.end(JSON.stringify({ result }) + '\n');
         } catch (error) {
@@ -61,7 +65,7 @@ export function callControl(socketPath, name, args = {}) {
     socket.setEncoding('utf8');
     let input = '';
     const fail = (error) => { socket.destroy(); reject(error); };
-    socket.setTimeout(20000, () => fail(new Error('Swingstr command timed out.')));
+    socket.setTimeout(timeoutFor(name) + 5000, () => fail(new Error('Swingstr command timed out.')));
     socket.on('error', (error) => fail(new Error(`Cannot connect to Swingstr. Open the desktop app first. (${error.code})`)));
     socket.on('connect', () => socket.write(JSON.stringify({ name, args }) + '\n'));
     socket.on('data', (chunk) => {

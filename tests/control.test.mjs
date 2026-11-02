@@ -33,6 +33,14 @@ test('commands reject invalid coordinates, missing arguments and arbitrary actio
   assert.throws(() => validateCommand('draw_shape', { type: 'line', points: [{ x: -1, y: 0 }, { x: 1, y: 1 }] }));
   assert.throws(() => validateCommand('draw_shape', { type: 'angle', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }));
   assert.throws(() => validateCommand('get_state', { script: 'untrusted' }));
+  assert.throws(() => validateCommand('load_video', {}));
+  assert.throws(() => validateCommand('load_video', { path: 'relative.mp4' }));
+  assert.throws(() => validateCommand('load_video', { path: '/a.mp4', url: 'https://x.test/a.mp4' }));
+  assert.throws(() => validateCommand('save_swing', { label: 'P7' }));
+  assert.throws(() => validateCommand('save_swing', { label: ' ', studentId: 's1' }));
+  assert.throws(() => validateCommand('create_student', { name: 'A', videos: [] }));
+  assert.doesNotThrow(() => validateCommand('load_video', { side: 'right', path: '/Users/me/swing.mov' }));
+  assert.doesNotThrow(() => validateCommand('save_swing', { label: 'Driver DTL', newStudentName: 'Sam' }));
 });
 
 test('real MCP stdio client discovers tools and calls the private socket; invalid commands never dispatch', async (t) => {
@@ -52,7 +60,7 @@ test('real MCP stdio client discovers tools and calls the private socket; invali
     env: { ...process.env, SWINGSTR_SOCKET: socketPath },
   }));
   t.after(() => client.close());
-  assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ['get_state', 'get_frame', 'list_swings', 'open_swing', 'playback', 'select_tool', 'set_style', 'configure_view', 'draw_shape', 'update_shape', 'set_marker', 'remove_marker', 'seek_position', 'set_segment', 'clear_segment', 'configure_comparison', 'remove_drawing', 'start_export', 'get_export_status', 'cancel_export'].sort());
+  assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ['get_state', 'get_frame', 'list_swings', 'open_swing', 'playback', 'select_tool', 'set_style', 'configure_view', 'draw_shape', 'update_shape', 'set_marker', 'remove_marker', 'seek_position', 'set_segment', 'clear_segment', 'configure_comparison', 'remove_drawing', 'start_export', 'get_export_status', 'cancel_export', 'load_video', 'save_swing', 'create_student', 'update_student', 'get_student'].sort());
   const response = await client.callTool({ name: 'get_state', arguments: {} });
   assert.deepEqual(JSON.parse(response.content[0].text), { playing: false, time: 1.25 });
   await assert.rejects(callControl(socketPath, 'draw_shape', { type: 'line', points: [] }));

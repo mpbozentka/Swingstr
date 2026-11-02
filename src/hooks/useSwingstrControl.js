@@ -9,6 +9,7 @@ function publicResult(value) {
   if (Number.isInteger(value.index) && typeof value.label === 'string') result.position = value.index + 1;
   return result;
 }
+const videoType = (name) => (/\.webm$/i.test(name) ? 'video/webm' : /\.mov$/i.test(name) ? 'video/quicktime' : 'video/mp4');
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 async function waitForVideo(pane, ready) {
@@ -26,6 +27,7 @@ export function useSwingstrControl({
   leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
   setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
   togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+  handleUpload, setUrlSource, saveSwing, setStudents, newId,
 }) {
   useEffect(() => {
     const desktop = window.swingstrDesktop;
@@ -60,6 +62,44 @@ export function useSwingstrControl({
           await waitForVideo(target, (v) => v.readyState >= 2 && v.videoWidth > 0);
           target().clearShapes();
           return { opened: true, side, label: swing.label, ...target().getControlState() };
+        }
+        case 'load_video': {
+          pane(side)?.pause();
+          if (args.file) {
+            const file = new File([args.file.buffer], args.file.fileName, { type: videoType(args.file.fileName) });
+            handleUpload(side, { target: { files: [file] } });
+          } else {
+            const result = await setUrlSource(side, args.url);
+            if (result?.error) throw new Error(result.error);
+          }
+          if (side === 'right') setLayout('split');
+          setActiveScreen(side);
+          setView('analyze');
+          await settle();
+          await waitForVideo(target, (v) => v.readyState >= 2 && v.videoWidth > 0);
+          target().clearShapes();
+          return { loaded: true, side, ...target().getControlState() };
+        }
+        case 'save_swing': {
+          const { studentId, record } = await saveSwing(side, args);
+          return { saved: true, studentId, swingId: record.id, label: record.label, source: record.source };
+        }
+        case 'create_student': {
+          const student = { id: newId(), name: args.name, email: args.email ?? '', phone: args.phone ?? '', notes: args.notes ?? '', videos: [] };
+          setStudents((prev) => [...prev, student]);
+          return { created: true, studentId: student.id, name: student.name };
+        }
+        case 'update_student': {
+          if (!students.some((s) => s.id === args.studentId)) throw new Error('Student not found. Use list_swings for current IDs.');
+          const { studentId, ...changes } = args;
+          setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, ...changes } : s)));
+          return { updated: true, studentId, changed: Object.keys(changes) };
+        }
+        case 'get_student': {
+          const student = students.find((s) => s.id === args.studentId);
+          if (!student) throw new Error('Student not found. Use list_swings for current IDs.');
+          const { videos = [], ...profile } = student;
+          return { ...profile, studentId: student.id, swings: videos.map((video) => ({ swingId: video.id, label: video.label, source: video.source, date: video.date })) };
         }
         case 'configure_view':
           if (args.layout) setLayout(args.layout);
@@ -127,5 +167,6 @@ export function useSwingstrControl({
     });
   }, [leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
     setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
-    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow]);
+    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+    handleUpload, setUrlSource, saveSwing, setStudents, newId]);
 }

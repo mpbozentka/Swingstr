@@ -318,25 +318,19 @@ export default function Swingstr() {
     scrubTo(parseFloat(e.target.value));
   });
 
-  useSwingstrControl({
-    leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
-    setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
-    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
-  });
-
-  const saveToStudent = useCallback(async () => {
-    if (!videoSavingEnabled()) return;
-    if (!saveData.studentId || !saveData.label) return;
-    const isNewStudent = saveData.studentId === NEW_STUDENT;
-    const newStudentName = saveData.newStudentName?.trim();
-    if (isNewStudent && !newStudentName) return;
-    const targetFile = activeScreen === 'left' ? leftFile : rightFile;
-    const targetVideo = activeScreen === 'left' ? leftVideo : rightVideo;
-    const targetDriveFileId = activeScreen === 'left' ? leftDriveFileId : rightDriveFileId;
-    if (!targetVideo) return;
+  // Shared by the Save dialog and local MCP control. Returns the new swing
+  // record and student ID, or throws with a user-facing reason.
+  const saveSwing = useCallback(async (side, { studentId, newStudentName, label }) => {
+    if (!videoSavingEnabled()) throw new Error('Video saving is available only in the desktop app.');
+    const targetFile = side === 'left' ? leftFile : rightFile;
+    const targetVideo = side === 'left' ? leftVideo : rightVideo;
+    const targetDriveFileId = side === 'left' ? leftDriveFileId : rightDriveFileId;
+    if (!targetVideo) throw new Error('Open a video in that pane first.');
+    const existing = studentId ? students.find((s) => s.id === studentId) : null;
+    if (studentId && !existing) throw new Error('Student not found.');
 
     const videoId = newId();
-    const baseRecord = { id: videoId, label: saveData.label, date: new Date().toLocaleDateString() };
+    const baseRecord = { id: videoId, label, date: new Date().toLocaleDateString() };
     // Drive videos store only the file ID — re-fetched from Drive on demand.
     // Local uploads go to the desktop library. Remote URLs stored as-is.
     const record = targetDriveFileId
@@ -346,38 +340,49 @@ export default function Swingstr() {
         : { ...baseRecord, remoteUrl: targetVideo, source: 'remote' };
 
     if (targetFile) {
-      try {
-        // The student's name and the clip label shape the on-disk path in the
-        // desktop app, so the file is findable in Finder without the app.
-        const studentName = isNewStudent
-          ? newStudentName
-          : students.find((s) => s.id === saveData.studentId)?.name;
-        await saveVideoBlob(videoId, targetFile, { studentName, label: saveData.label });
-      } catch (err) {
-        console.warn('[saveToStudent] desktop library write failed', err);
-        setToast({ message: "Couldn't save the video.", kind: 'error' });
-        return;
-      }
+      // The student's name and the clip label shape the on-disk path in the
+      // desktop app, so the file is findable in Finder without the app.
+      await saveVideoBlob(videoId, targetFile, { studentName: existing?.name ?? newStudentName, label });
     }
 
-    if (isNewStudent) {
+    const savedStudentId = existing ? existing.id : newId();
+    if (existing) {
+      setStudents((prev) => prev.map((s) => (s.id === savedStudentId ? { ...s, videos: [...(s.videos || []), record] } : s)));
+    } else {
       setStudents((prev) => [
         ...prev,
-        { id: newId(), name: newStudentName, email: '', phone: '', notes: '', videos: [record] },
+        { id: savedStudentId, name: newStudentName, email: '', phone: '', notes: '', videos: [record] },
       ]);
-    } else {
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === saveData.studentId
-            ? { ...s, videos: [...(s.videos || []), record] }
-            : s
-        )
-      );
+    }
+    return { studentId: savedStudentId, record };
+  }, [students, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
+
+  const saveToStudent = useCallback(async () => {
+    if (!videoSavingEnabled()) return;
+    if (!saveData.studentId || !saveData.label) return;
+    const isNewStudent = saveData.studentId === NEW_STUDENT;
+    const newStudentName = saveData.newStudentName?.trim();
+    if (isNewStudent && !newStudentName) return;
+    try {
+      await saveSwing(activeScreen, isNewStudent
+        ? { newStudentName, label: saveData.label }
+        : { studentId: saveData.studentId, label: saveData.label });
+    } catch (err) {
+      console.warn('[saveToStudent] desktop library write failed', err);
+      setToast({ message: "Couldn't save the video.", kind: 'error' });
+      return;
     }
     setShowSaveModal(false);
     setSaveData({ studentId: '', label: '', newStudentName: '' });
     setToast({ message: 'Saved to student library.', kind: 'success' });
-  }, [saveData, students, activeScreen, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
+  }, [saveData, activeScreen, saveSwing]);
+
+  useSwingstrControl({
+    leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
+    setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
+    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+    handleUpload, setUrlSource, saveSwing, setStudents, newId,
+  });
 
   // Tracks whether P is currently physically held — no native modifier flag
   // exists for letter keys, so this is tracked by hand. Reset on keyup AND

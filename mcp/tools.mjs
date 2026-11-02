@@ -53,6 +53,22 @@ Object.assign(toolDefinitions, {
   cancel_export: { description: 'Idempotently cancel an active export and release its media resources.', schema: z.object({ jobId: z.string().min(1) }).strict() },
 });
 
+const studentFields = {
+  email: z.string().max(200).optional(),
+  phone: z.string().max(50).optional(),
+  notes: z.string().max(20000).optional(),
+};
+Object.assign(toolDefinitions, {
+  load_video: { description: 'Load a new video into a pane for analysis. Give an absolute local file path (mp4/mov/m4v/webm) or an http(s)/YouTube URL. YouTube clips are downloaded first, which can take a minute. Waits until the video is ready. Replaces the pane and clears its drawings. Does not save to the library; use save_swing for that.', schema: z.object({ side, path: z.string().min(1).optional(), url: z.string().url().optional() }).strict().refine((a) => Boolean(a.path) !== Boolean(a.url), 'Provide exactly one of path or url.').refine((a) => !a.path || a.path.startsWith('/'), 'path must be absolute.') },
+  save_swing: { description: 'Save the video in a pane to a student profile in the local Swingstr Library with a label. Give studentId (from list_swings) or newStudentName to create the student. Returns the new swingId.', schema: z.object({ side, label: z.string().trim().min(1).max(120), studentId: z.string().min(1).optional(), newStudentName: z.string().trim().min(1).max(120).optional() }).strict().refine((a) => Boolean(a.studentId) !== Boolean(a.newStudentName), 'Provide exactly one of studentId or newStudentName.') },
+  create_student: { description: 'Create a student profile. Returns its studentId.', schema: z.object({ name: z.string().trim().min(1).max(120), ...studentFields }).strict() },
+  update_student: { description: 'Change a student profile\'s name, email, phone or coaching notes. Omitted fields are unchanged.', schema: z.object({ studentId: z.string().min(1), name: z.string().trim().min(1).max(120).optional(), ...studentFields }).strict() },
+  get_student: { description: 'Read one student profile including contact details, coaching notes and saved swings.', schema: z.object({ studentId: z.string().min(1) }).strict(), readOnly: true },
+});
+
+// Commands that may wait on downloads or large file reads.
+export const commandTimeouts = { load_video: 300000, save_swing: 120000 };
+
 function validatePointCount(a, ctx) {
   const count = a.type === 'angle' ? 3 : 2;
   if (a.type !== 'free' && a.points.length !== count) ctx.addIssue({ code: 'custom', message: `${a.type} requires ${count} points` });

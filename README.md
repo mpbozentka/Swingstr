@@ -159,6 +159,7 @@ stdio MCP server using absolute paths to your Node executable and this repo:
 
 ```sh
 codex mcp add swingstr -- /absolute/path/to/node /absolute/path/to/Swingstr/mcp/server.mjs
+claude mcp add --scope user swingstr -- /absolute/path/to/node /absolute/path/to/Swingstr/mcp/server.mjs
 ```
 
 Reload Codex's MCP connections, or restart Codex if the tools do not appear.
@@ -166,11 +167,21 @@ Swingstr must be running when a tool is called. The connection uses the
 standard [Codex MCP configuration](https://developers.openai.com/codex/mcp).
 
 Available tools: `get_state`, `get_frame`, `list_swings`, `open_swing`,
+`load_video`, `save_swing`, `create_student`, `update_student`, `get_student`,
 `playback`, `select_tool`, `set_style`, `configure_view`, `draw_shape`, and
-`update_shape`. Saved swing listing returns IDs, student names and clip labels,
-without contact details or coaching notes. Opening by ID currently supports
-local saved files; remote/Drive videos can still be opened through the app.
-No student-library save, library delete, upload or arbitrary code execution tool is exposed. Explicit exports save new files outside the library; remove_drawing removes one temporary annotation.
+`update_shape`. `list_swings` returns IDs, student names and clip labels;
+`get_student` returns one profile with contact details and coaching notes.
+Opening by ID currently supports local saved files; remote/Drive videos can
+still be opened through the app.
+
+`load_video` takes an absolute local file path (mp4, m4v, mov, webm, up to
+4 GB) or an http(s)/YouTube URL. The main process reads local files, so movie
+bytes never cross the control socket. `save_swing` saves a pane's video to an
+existing student (`studentId`) or a new one (`newStudentName`) in the desktop
+Swingstr Library, the same as the Save dialog. `create_student` and
+`update_student` edit profiles. No library delete or arbitrary code execution
+tool is exposed. Explicit exports save new files outside the library;
+remove_drawing removes one temporary annotation.
 
 Drawings use normalized video coordinates: top left is `{x: 0, y: 0}` and
 bottom right is `{x: 1, y: 1}`. `get_frame` returns a native-resolution JPEG

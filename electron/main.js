@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
-import { readFile, writeFile, readdir, unlink } from 'node:fs/promises'
+import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +10,7 @@ import { Buffer } from 'node:buffer'
 import process from 'node:process'
 import { saveExportOutput } from './exportOutput.mjs'
 import { randomUUID } from 'node:crypto'
-import { startControlServer } from '../mcp/transport.mjs'
+import { startControlServer, timeoutFor } from '../mcp/transport.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -134,7 +134,21 @@ let server = null
 let controlServer = null
 const pendingCommands = new Map()
 
-function dispatchControl(name, args) {
+const LOADABLE_VIDEO = /\.(mp4|m4v|mov|webm)$/i
+const MAX_LOAD_BYTES = 4 * 1024 * 1024 * 1024
+
+// Local files are read here so movie bytes never cross the control socket.
+async function readControlVideo(filePath) {
+  if (!path.isAbsolute(filePath) || !LOADABLE_VIDEO.test(filePath)) throw new Error('Choose an absolute path to an mp4, m4v, mov or webm file.')
+  const info = await stat(filePath).catch(() => null)
+  if (!info?.isFile()) throw new Error(`No video file at ${filePath}.`)
+  if (info.size > MAX_LOAD_BYTES) throw new Error('That video is larger than 4 GB.')
+  const buf = await readFile(filePath)
+  return { buffer: buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength), fileName: path.basename(filePath) }
+}
+
+async function dispatchControl(name, args) {
+  if (name === 'load_video' && args.path) args = { ...args, file: await readControlVideo(args.path) }
   return new Promise((resolve, reject) => {
     if (!mainWindow || mainWindow.webContents.isLoading()) {
       reject(new Error('Swingstr is still loading. Try again in a moment.'))
@@ -144,7 +158,7 @@ function dispatchControl(name, args) {
     const timer = setTimeout(() => {
       pendingCommands.delete(id)
       reject(new Error('Swingstr did not respond to the command.'))
-    }, 15000)
+    }, timeoutFor(name))
     pendingCommands.set(id, { resolve, reject, timer })
     mainWindow.webContents.send('control-command', { id, name, args })
   })
