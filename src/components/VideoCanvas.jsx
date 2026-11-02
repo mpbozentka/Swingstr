@@ -139,6 +139,16 @@ const VideoCanvas = forwardRef(
     // O(n) state rebuild per pointermove; the canvas redraws via `draw()` deps
     // which still pick up shape changes when the gesture commits. (#22)
     const livePointsRef = useRef(null);
+    // Leaving the angle tool abandons a half-placed angle; otherwise its
+    // points reappear (and get reused) the next time the tool is picked.
+    useEffect(() => { if (tool !== 'angle') setPoints([]); }, [tool]);
+    // Unfinished angle points in normalized video coordinates, so control
+    // clients can see what's on screen before the third click.
+    const pendingAnglePoints = () => {
+      if (tool !== 'angle' || !points.length || !containerRef.current) return [];
+      const r = computeVideoRect(videoRef.current, containerRef.current);
+      return points.map((p) => ({ x: (p.x - r.x) / r.w, y: (p.y - r.y) / r.h }));
+    };
 
     /**
      * Compute the rect (in container/canvas pixels) where the video is
@@ -207,6 +217,16 @@ const VideoCanvas = forwardRef(
       shapesRef.current.filter(eligible).forEach((shape) => renderShape(ctx,
         mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth, y: y * vid.videoHeight })),
         { zoomLevel: 1, video: vid, videoRect }));
+      const pending = pendingAnglePoints();
+      if (pending.length) {
+        const radius = Math.max(4, vid.videoWidth / 180);
+        ctx.fillStyle = color;
+        pending.forEach((p) => {
+          ctx.beginPath();
+          ctx.arc(p.x * vid.videoWidth, p.y * vid.videoHeight, radius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
 
       return tempCanvas.toDataURL('image/jpeg', 0.9);
     });
@@ -345,6 +365,9 @@ const VideoCanvas = forwardRef(
             height: video?.videoHeight ?? 0,
             viewCrop: getViewCrop(),
             drawings: rect ? shapesRef.current.map((shape, index) => ({ index, ...shape })) : [],
+            pendingDrawing: pendingAnglePoints().length
+              ? { type: 'angle', points: pendingAnglePoints(), needed: 3, coordinates: 'source' }
+              : null,
           };
         },
         putControlShape: (args, defaults) => {
