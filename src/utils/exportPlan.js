@@ -11,7 +11,8 @@ export function resolveExportPlan(options, sources, comparison = { mode: 'indepe
     const range = resolveSegment(s.selection, s.markers, s.duration);
     const anchor = source === 'both' && comparison.mode === 'aligned' ? s.markers.find((m) => m.index === comparison.anchorPosition - 1)?.time : range.start;
     if (!Number.isFinite(anchor) || anchor < range.start || anchor > range.end) throw new Error(`${side}: alignment checkpoint must be marked inside the selection.`);
-    const crop = framing[side]?.crop ?? { x: 0, y: 0, w: 1, h: 1 };
+    // Default to the pane's on-screen zoom so exports match what the user sees.
+    const crop = framing[side]?.crop ?? s.viewCrop ?? { x: 0, y: 0, w: 1, h: 1 };
     if (![crop.x, crop.y, crop.w, crop.h].every(Number.isFinite) || crop.x < 0 || crop.y < 0 || crop.w <= 0 || crop.h <= 0 || crop.x + crop.w > 1 || crop.y + crop.h > 1) throw new Error('Crop must be a positive rectangle inside the source.');
     const fit = framing[side]?.fit ?? 'contain';
     if (!['contain', 'crop'].includes(fit)) throw new Error('Fit must be contain or crop.');

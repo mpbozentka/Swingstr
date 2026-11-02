@@ -105,3 +105,11 @@ test('emoji stamps remain selectable, movable, resizable and render at export re
     assert.match(ctx.font, /^400px/);
   }
 });
+test('export framing defaults to the on-screen zoom crop and explicit crops still win', () => {
+  const viewCrop = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+  const zoomed = { left: { ...source(), viewCrop } };
+  assert.deepEqual(resolveExportPlan({ source: 'left' }, zoomed).panes[0].framing.crop, viewCrop);
+  const crop = { x: 0, y: 0, w: 1, h: 1 };
+  assert.deepEqual(resolveExportPlan({ source: 'left', framing: { left: { crop } } }, zoomed).panes[0].framing.crop, crop);
+  assert.deepEqual(resolveExportPlan({ source: 'left' }, { left: source() }).panes[0].framing.crop, crop);
+});

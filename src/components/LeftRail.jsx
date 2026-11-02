@@ -5,6 +5,7 @@ import {
   PenTool,
   Palette,
   Trash2,
+  Undo2,
   Gauge,
   Scissors,
   Check,
@@ -104,6 +105,7 @@ export default function LeftRail({
   activeMenu,
   setActiveMenu,
   clearShapes,
+  undoLastShape,
   activeTrim,
   onSetTrim,
   onClearTrim,
@@ -183,6 +185,14 @@ export default function LeftRail({
           />
         </RailFlyout>
       )}
+
+      <RailButton
+        onClick={undoLastShape}
+        title="Undo last drawing (⌘Z)"
+        aria-label="Undo last drawing"
+      >
+        <Undo2 size={18} />
+      </RailButton>
 
       <RailButton
         onClick={clearShapes}

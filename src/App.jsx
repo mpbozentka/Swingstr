@@ -274,6 +274,11 @@ export default function Swingstr() {
     target.current?.clearShapes();
   }, [activeScreen]);
 
+  const undoLastShape = useCallback(() => {
+    const target = activeScreen === 'left' ? leftRef : rightRef;
+    target.current?.undoShape();
+  }, [activeScreen]);
+
   const handleTimeUpdate = useCallback((time, dur) => {
     setGlobalTime(time);
     setGlobalDuration(dur);
@@ -411,6 +416,11 @@ export default function Swingstr() {
 
     const handleKeyDown = (e) => {
       if (isTextish(document.activeElement)) return;
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyZ') {
+        e.preventDefault();
+        undoLastShape();
+        return;
+      }
       if (e.code === 'KeyP') {
         pHeldRef.current = true; // a lone P does nothing on its own — no preventDefault
         return;
@@ -522,6 +532,7 @@ export default function Swingstr() {
       togglePlay={togglePlay}
       seek={seek}
       clearShapes={clearShapes}
+      undoLastShape={undoLastShape}
       openSaveModal={() => { if (videoSavingEnabled()) setShowSaveModal(true); }}
       globalTime={globalTime}
       globalDuration={globalDuration}

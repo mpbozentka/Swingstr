@@ -165,6 +165,26 @@ const VideoCanvas = forwardRef(
       return { x, y, w, h };
     };
 
+    /**
+     * The part of the source currently visible after zoom/pan, as a
+     * normalized crop. Exports default to it so they match the screen.
+     */
+    const getViewCrop = () => {
+      const full = { x: 0, y: 0, w: 1, h: 1 };
+      const vid = videoRef.current;
+      const container = containerRef.current;
+      if (!vid?.videoWidth || !container?.clientWidth || zoomLevel === 1) return full;
+      const r = computeVideoRect(vid, container);
+      const unview = (s, pan, centre) => (s - pan - centre) / zoomLevel + centre;
+      const cw = container.clientWidth, ch = container.clientHeight;
+      const x0 = Math.max(r.x, unview(0, panX, cw / 2)), x1 = Math.min(r.x + r.w, unview(cw, panX, cw / 2));
+      const y0 = Math.max(r.y, unview(0, panY, ch / 2)), y1 = Math.min(r.y + r.h, unview(ch, panY, ch / 2));
+      if (x1 <= x0 || y1 <= y0) return full;
+      const round = (n) => Math.round(n * 10000) / 10000;
+      const x = round((x0 - r.x) / r.w), y = round((y0 - r.y) / r.h);
+      return { x, y, w: Math.min(1 - x, round((x1 - x0) / r.w)), h: Math.min(1 - y, round((y1 - y0) / r.h)) };
+    };
+
     const takeSnapshot = (async () => {
       if (!videoRef.current || !canvasRef.current || !containerRef.current)
         return null;
@@ -243,11 +263,16 @@ const VideoCanvas = forwardRef(
       try {
         const frame = await seekDecoded(vid, time);
         if (sourceRef.current !== token) throw new Error('Source replaced during capture.');
-        const canvas = document.createElement('canvas'); canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
-        canvas.getContext('2d').drawImage(vid, 0, 0);
-        return { canvas, shapes: shapesRef.current.filter((shape) => annotationVisible(shape, { time, frame, markers })).map((shape) => mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth, y: y * vid.videoHeight }))), videoRect: { x: 0, y: 0, w: vid.videoWidth, h: vid.videoHeight } };
+        // Capture only the zoomed-in region the user is looking at.
+        const c = getViewCrop();
+        const sx = c.x * vid.videoWidth, sy = c.y * vid.videoHeight;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(c.w * vid.videoWidth)); canvas.height = Math.max(1, Math.round(c.h * vid.videoHeight));
+        canvas.getContext('2d').drawImage(vid, sx, sy, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+        return { canvas, shapes: shapesRef.current.filter((shape) => annotationVisible(shape, { time, frame, markers })).map((shape) => mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth - sx, y: y * vid.videoHeight - sy }))), videoRect: { x: 0, y: 0, w: canvas.width, h: canvas.height } };
       } finally { releaseVideo(vid); }
-    }, [src, markers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- getViewCrop reads current zoom/pan each render
+    }, [src, markers, zoomLevel, panX, panY]);
 
     useImperativeHandle(
       ref,
@@ -273,6 +298,16 @@ const VideoCanvas = forwardRef(
         },
         setPlaybackRate: (r) => {
           if (videoRef.current) videoRef.current.playbackRate = r;
+        },
+        // Shapes are appended as they're drawn, so the last entry is the newest.
+        undoShape: () => {
+          if (!shapesRef.current.length) return false;
+          const next = shapesRef.current.slice(0, -1);
+          shapesRef.current = next;
+          setShapes(next);
+          setSelectedIndex(-1);
+          draggingHandle.current = null;
+          return true;
         },
         clearShapes: () => {
           shapesRef.current = [];
@@ -308,6 +343,7 @@ const VideoCanvas = forwardRef(
             speed: video?.playbackRate ?? 1,
             width: video?.videoWidth ?? 0,
             height: video?.videoHeight ?? 0,
+            viewCrop: getViewCrop(),
             drawings: rect ? shapesRef.current.map((shape, index) => ({ index, ...shape })) : [],
           };
         },

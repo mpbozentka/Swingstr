@@ -80,6 +80,7 @@ export default function AnalyzerView({
   togglePlay,
   seek,
   clearShapes,
+  undoLastShape,
   openSaveModal,
   globalTime,
   globalDuration,
@@ -416,6 +417,7 @@ export default function AnalyzerView({
           activeMenu={activeMenu}
           setActiveMenu={setActiveMenu}
           clearShapes={clearShapes}
+          undoLastShape={undoLastShape}
           activeTrim={activeTrim}
           onSetTrim={onSetTrim}
           onClearTrim={onClearTrim}

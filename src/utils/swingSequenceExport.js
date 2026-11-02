@@ -145,7 +145,13 @@ export async function generateSwingSequence({
       const y = titleHeight + (vertical ? col : row) * (cellH + gap);
 
       if (frame?.canvas) {
-        ctx.drawImage(frame.canvas, x, y, cellW, frameH);
+        // Zoomed panes can differ in shape; fit each frame without stretching.
+        const fit = Math.min(cellW / frame.canvas.width, frameH / frame.canvas.height);
+        const dw = frame.canvas.width * fit, dh = frame.canvas.height * fit;
+        const dx = x + (cellW - dw) / 2, dy = y + (frameH - dh) / 2;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x, y, cellW, frameH);
+        ctx.drawImage(frame.canvas, dx, dy, dw, dh);
 
         // Render annotations on top — shapes are stored in the live view's
         // container-pixel space, so we need the frame's videoRect (the
@@ -154,8 +160,8 @@ export async function generateSwingSequence({
         if (frame.shapes?.length > 0 && frame.videoRect) {
           const vr = frame.videoRect;
           ctx.save();
-          ctx.translate(x, y);
-          ctx.scale(cellW / vr.w, frameH / vr.h);
+          ctx.translate(dx, dy);
+          ctx.scale(dw / vr.w, dh / vr.h);
           ctx.translate(-vr.x, -vr.y);
           // Pass a videoRect that matches the frame canvas so blur shapes
           // (which read videoRect for drawImage) cover the full cell.
