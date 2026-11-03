@@ -51,7 +51,9 @@ const VideoCanvas = forwardRef(
     const frameRef = useRef(null);
     const sourceRef = useRef(null);
     const sourceId = src;
-    const [drawingScope, setDrawingScope] = useState({ kind: 'all' });
+    // Hand-drawn shapes always show for the whole video (Mitchell, 2026-11-02).
+    // The scope picker was removed on 2026-10-27, so nothing can narrow it.
+    const drawingScope = { kind: 'all' };
     const [scopeError, setScopeError] = useState('');
     const currentRect = () => computeVideoRect(videoRef.current, containerRef.current);
     const displayed = (shape) => shape.coordinates === 'source' ? mapShape(shape, ({ x, y }) => { const r = currentRect(); return { x: r.x + x * r.w, y: r.y + y * r.h }; }) : shape;
@@ -119,11 +121,9 @@ const VideoCanvas = forwardRef(
       const video = videoRef.current;
       if (!video?.requestVideoFrameCallback) return undefined;
       let id;
-      let first = true;
       const tick = (_now, meta) => {
         frameRef.current = { mediaTime: meta.mediaTime, presentedFrames: meta.presentedFrames };
         video._swingstrFrame = frameRef.current;
-        if (first) { setDrawingScope({ kind: 'frame', mediaTime: meta.mediaTime }); first = false; }
         id = video.requestVideoFrameCallback(tick);
       };
       id = video.requestVideoFrameCallback(tick);
@@ -380,7 +380,7 @@ const VideoCanvas = forwardRef(
           if (index < 0 || index > next.length || ((args.index != null || args.id) && index === next.length)) throw new Error('Drawing not found.');
           const previous = next[index];
           const geometry = shapeFromCommand(args, { x: 0, y: 0, w: 1, h: 1 }, { color: previous?.color ?? defaults.color, width: previous?.width ?? defaults.width });
-          const visibility = args.visibility ?? previous?.visibility ?? (frameRef.current?.mediaTime != null ? { kind: 'frame', mediaTime: frameRef.current.mediaTime } : { kind: 'all' });
+          const visibility = args.visibility ?? previous?.visibility ?? { kind: 'all' };
           validateVisibility(visibility, video.duration, frameRef.current?.mediaTime != null);
           const shape = { ...previous, ...geometry, id: previous?.id ?? newId(), sourceId, coordinates: 'source', visibility, showAngleLabel: args.showAngleLabel ?? previous?.showAngleLabel ?? false };
           next[index] = shape; shapesRef.current = next; setShapes(next); setSelectedIndex(-1);

@@ -89,6 +89,11 @@ worth checking later.
   looks roughly right.
 - In general, check every P position frame by frame before setting it, not
   just impact.
+- **P4 with an active transition** (Rory, 2026-11-02): some golfers start
+  the downswing by lowering the body a lot while the hands look still at the
+  top. The hands staying put does not mean the downswing hasn't started. Watch
+  for the body starting to drop and set P4 before it; when unsure, go earlier.
+  I was late on P4 in both views (face-on by about 7 frames at 43.8 fps).
 
 Swingstr note: after a `playback seek`, `get_state`'s frame time can show the
 previous frame. Trust the time in `get_frame`'s response.
@@ -154,7 +159,21 @@ Example read (2026-11-02 swing, P4 at 5.50s): the camera had drifted about
   borderline thigh-line reading plus a rolled trail foot means sway.
 - The lead thigh moved away from its line. ✓ (allowed)
 
-### P2, P3, P5–P10
+### P7: Impact
+
+Mitchell's teaching philosophy (`~/Brain/golf-instruction/raw/articles/MPB-Golf-Coaching-Philosophy.md`)
+starts at impact, so the template's checks start at P7 and work backward.
+Every check has to connect to an impact alignment: speed, face, path,
+impact point, or the ball-first check.
+
+1. **Shaft lean (look at this first).** The shaft should lean forward by
+   some amount at impact, with the handle ahead of the clubhead toward the
+   target.
+   - **How much:** not given yet.
+   - **How to draw it:** not given yet.
+   - **What it tells:** not given yet.
+
+### P2, P3, P5, P6, P8–P10
 
 Not given yet.
 
@@ -189,6 +208,19 @@ Mitchell's corrections on 2026-11-02.
   Lean later rather than earlier.
 - **P10, finish:** the golfer has to have settled back down, not just reached
   the high finish. Mine was early.
+
+- **P3 and P5, perspective:** with the camera above the hands, the lead arm
+  points roughly toward the camera at P3 and P5, so a level arm shows the
+  hands *below* the lead shoulder on screen. Don't wait for the hands to reach
+  shoulder height. On the Rory swing (60 fps), my P3 was 12 frames late
+  (hands at shoulder height) and Mitchell's was where the hands were at mid
+  chest; my P5 was 6 frames early: "the hands a little too high and hadn't gotten
+  low enough to be parallel to the ground." His P5 has the hands back at mid
+  chest.
+- **P6, when the shaft points at the camera:** on a camera behind and above
+  the golfer, the shaft points straight at the lens near P6. True P6 is after
+  that frame. On the Rory swing I took one frame after and was still 2 frames
+  early; take about 3 frames after.
 
 ### Frame steps
 
@@ -236,3 +268,29 @@ Example drift (2026-11-02 swing):
 The camera tilted during the backswing and stayed there. From down the line,
 a 20px vertical drift is enough to fake a head or posture change against a
 head-height or spine line. Subtract it before judging any line.
+
+## Example: Rory, 2026-11-02 (YouTube clips)
+
+Two clips loaded side by side: face-on on the left (43.8 fps slow motion) and
+down the line from behind on the right (60 fps). Mitchell: "other than that it
+was pretty good." Rory has a very active transition and lowers his body a lot,
+which makes P4 hard to read.
+
+| View | P | Mine | Mitchell's | What he said |
+|---|---|---|---|---|
+| Face-on | P4 | 5.479 (frame 240) | 5.329 (frame 233) | A little late |
+| DTL | P3 | 2.536 (frame 152) | 2.336 (frame 140) | A little late |
+| DTL | P5 | 3.803 (frame 228) | 3.903 (frame 234) | Hands a little too high; the lead arm wasn't low enough to be parallel yet |
+| DTL | P6 | 4.136 (frame 248) | 4.170 (frame 250) | Too early |
+
+He also said DTL P4 (3.403, frame 204) was a little late, but that marker
+was not moved.
+
+Unchanged and accepted, face-on: P1 0.346, P2 2.513, P3 3.608, P5 6.346,
+P6 6.871, P7 7.144 (clubhead just behind the ball; the ball is gone on the
+next frame), P8 7.760 (club off the frame edge, estimated), P9 8.217,
+P10 11.046. DTL: P1 0.786 (before a small waggle), P2 1.886, P7 4.270
+(first frame with the clubhead at the ball), P8 4.553 (hidden, estimated),
+P9 4.836, P10 6.103.
+
+Swingstr marker moves by Mitchell again came in steps of about 0.05s.
