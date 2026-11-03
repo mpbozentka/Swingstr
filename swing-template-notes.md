@@ -169,9 +169,75 @@ impact point, or the ball-first check.
 1. **Shaft lean (look at this first).** The shaft should lean forward by
    some amount at impact, with the handle ahead of the clubhead toward the
    target.
-   - **How much:** not given yet.
-   - **How to draw it:** not given yet.
-   - **What it tells:** not given yet.
+   - **How much:** some amount of forward lean is the goal. There's no exact
+     number. Expect more lean with wedges and less with longer irons.
+     Vertical or leaning back is the thing to flag.
+   - **How to draw it:** a red line along the shaft at P7, from the bottom
+     of the shaft at the clubhead up through the hands (the way Mitchell drew
+     it). Whole-swing visibility, like every line. The angle tool can measure
+     the lean too: vertex at the bottom of the shaft, one arm straight up, one
+     arm up the shaft. Line the vertical arm up with the P1 ball line (not the
+     video edge) so a tilted phone doesn't change the reading.
+   - **What it tells:** ball first and low point, and how much loft the face
+     presents (Mitchell confirmed). Forward lean means the low point is ahead
+     of the ball and the club reaches the ball before the turf. A vertical or
+     backward-leaning shaft points to fat or thin contact and adds loft, so
+     expect a higher, weaker flight. Check it against ball flight and sound;
+     the video doesn't outrank the ball.
+   - **Side bill (from the golf-instruction wiki, `concepts/shaft-lean.md`):**
+     forward lean also biases the face open, so more lean without managing
+     the face can trade a high, weak shot for a lower ball that starts right
+     (Eric Allen, 2026-09-26). With the driver, too much forward lean costs
+     launch (Rob Schwartz, 2026-08-02).
+
+2. **Hip slide through the lead thigh line.** How far the hips have slid
+   toward the target, through the P1 lead thigh line, at impact.
+   - **Definition (Mitchell approved, 2026-11-02):** the horizontal distance,
+     toward the target, from the P1 lead thigh line to the outside edge of
+     the lead hip at P7, measured at hip height where the hip meets the top
+     of the thigh. Subtract camera drift (how far the ball moved from the
+     ball circle). Report it in pixels and in **ball widths** (a ball is
+     1.68 in), so it compares across videos whatever the camera distance or
+     zoom. Inches are approximate because the hips sit a little farther from
+     the camera than the ball; ball widths are the number to compare.
+   - **How to measure:** zoomed crops of P1 and P7 with a pixel grid. Loose
+     shorts can blur the outline, so read the edge where the cloth sits on
+     the hip.
+   - **How much (iron, address to impact):** the tour average is about
+     **5 in (3 ball widths)**. Minimum about **2 in (1.2 ball widths)**,
+     maximum about **7 in (4.2 ball widths)**. Below the minimum or above
+     the maximum is the thing to flag.
+   - **What it tells (Mitchell confirmed):** too little slide leaves the low
+     point behind the ball, so expect fat or thin contact and little shaft
+     lean. Too much slide can over-lean the shaft, strike low on the face,
+     and send the ball right. Check against ball flight and sound.
+
+3. **Head position change from address.** Compare the head at P7 with P1,
+   using the head height line (up/down) and the lead-side head line (side to
+   side), after subtracting camera drift. Report it in ball widths, like hip
+   slide.
+   - **Up/down:** some drop is normal and fine (Mitchell, 2026-11-02).
+     Forward shaft lean puts an angle between the lead arm and the shaft,
+     which shortens the radius from the clubhead to the lead shoulder. To
+     hit the ball in the center of the face, the golfer has no choice but to
+     drop the head. **Too much drop is when the golfer hits it fat**; judge
+     it by the strike, not by a number. Rising is the opposite problem (from
+     the golf-instruction wiki: thin, topped, heel strikes, often with early
+     extension).
+   - **Side to side, iron:** ideally the head is where it was at address,
+     neither forward nor back. Forward of address is allowed. Back of
+     address is a fault unless there's ample forward shaft lean.
+   - **Side to side, driver:** the head can go back farther than at address,
+     but it must not go forward.
+   - **What it tells:** low point and strike. A head that hangs back puts
+     the low point behind the ball (fat and thin, flipping); a head that
+     drops too far puts the club in the ground first.
+
+   Example (Rory, face-on, P7 7.144s, frame 313): Mitchell's line runs from
+   (0.575, 0.823) at the bottom of the shaft to (0.711, 0.457) above the
+   hands. On a 720×1280 frame that's about 12° of forward lean from vertical
+   on screen. This clip has no ball line, so the 12° isn't corrected for
+   camera tilt.
 
 ### P2, P3, P5, P6, P8–P10
 
@@ -294,3 +360,96 @@ P10 11.046. DTL: P1 0.786 (before a small waggle), P2 1.886, P7 4.270
 P9 4.836, P10 6.103.
 
 Swingstr marker moves by Mitchell again came in steps of about 0.05s.
+
+### Rory face-on, P7 readings
+
+Mitchell drew the P1 template on this clip himself: head height line, a
+vertical line at the lead side of the head, and both thigh lines. I added the
+yellow ball circle at (0.6215, 0.8158), radius 0.015.
+
+- **Camera drift P1 → P7:** ball about 5px left and 3px down. Ball is about
+  23px wide.
+- **Shaft lean:** about 12° forward from vertical on screen.
+- **Hip slide:** the outside of the lead hip is about 65px past the lead
+  thigh line (67px at the belt, 60px lower on the thigh), about 70px after
+  drift. That's **about 3 ball widths, roughly 5 inches**, toward the target.
+  Mitchell: 5 in is the tour average for an iron, so this is right on it.
+- **Head (against Mitchell's head height line at y 228 and lead-side head
+  line at x 436):** the top of the cap is about 37px below the height line,
+  about 33px after drift. That's about 1.4 ball widths, roughly 2.4 in,
+  lower. The cap also tilts toward the trail side at impact, which accounts
+  for part of the drop. The lead edge of the cap stays on the lead-side
+  line, so the head didn't move toward the target (about 5px back the other
+  way after drift, within reading error).
+  Read against Mitchell's rules: the drop is the normal shaft-lean drop, and
+  the head is back where it was at address side to side, which is the ideal
+  for an iron. ✓
+
+## Candidate checks from the golf-instruction wiki (NOT confirmed yet)
+
+Pulled from `~/Brain/golf-instruction/wiki` on 2026-11-02 (technique, fault
+and "sources" pages read in full; lesson notes searched by keyword; Mac
+O'Grady pages skipped). Mitchell hasn't confirmed any of these. Walk through
+them with him by position and move the confirmed ones into the sections
+above. Most path/attack/face directions are his own chat model, marked
+unsourced in the wiki. Right-handed directions.
+
+**Where we stopped:** P7 face-on has shaft lean, hip slide and head. Next
+session, pick a position from this list and confirm checks one at a time.
+
+### P1, address
+- Face-on spine tilt away from target: more tilt = shallower/up attack, less =
+  steeper. Driver more, irons less. (attack sources)
+- Face-on stance width: wider (trail foot out) = low point back, attack up,
+  swing direction right. (address levers)
+- DTL posture: hinge from the hips, butt back, chest over. Too upright limits
+  turn; too bent with low hands can start an early forearm roll → laid off,
+  open face (James Swan).
+- DTL hand height: low hands, toe up, shaft at the belt buckle went with fat
+  and toe strikes; higher hands, toe down (Al Cairns L6).
+- Distance from the ball: crowding → heel; too far + flat shoulder turn →
+  shank (Siena).
+- DTL body aim: feet, hips, shoulders vs target line. Shoulders matter more
+  than feet. Closed = path right, open = path left.
+
+### P2, takeaway (DTL)
+- Clubhead under the shaft line = face fanned open; above = more closed
+  (Eric Allen, Ben Siminoff).
+- Face fanned open to the spine angle (Mason Higginbotham).
+- Outside takeaway → club from above; fix was inside/around (Al Cairns L3).
+
+### P3–P4, backswing
+- Face-on shoulder line at P2, P3, P4: each line flatter than the last = tilt
+  lost late, head rises, inconsistent contact (Michael Stewart). Coach the
+  shoulders; head line is the verifier.
+- DTL shaft at P4: across the line → path in-to-out; laid off → out-to-in.
+  A lever, not a fault by itself.
+- Lead wrist at P4: cupped → face open; flat/bowed → closed.
+- Lead arm too vertical at the top → club can't come from behind, path left
+  (Rider Smith).
+- Flat "merry-go-round" shoulder plane → heel/shank (Olivia Tan, Siena).
+
+### P5–P6, downswing
+- Face-on shaft should flatten from P4; same or steeper = over the top.
+- Face-on pelvis vs torso sway: pelvis toward target with torso back adds
+  spine tilt → in-to-out, shallower. Torso toward target removes tilt →
+  out-to-in, steeper, holds face open. Compare spine line with P1.
+- Face-on head drop: too much → club outside the ball or fat (Anne
+  Elmajian); high-face strikes (Trevor Hanifin).
+- DTL trail elbow stays close; flying away = over the top.
+- DTL club above the P1 shaft line → path left; under then over showed with
+  a positive path. Leitz caveat: plane on video isn't path; check the ball.
+
+### P7, impact (beyond the three confirmed checks)
+- Face-on arms: both elbows bent ("home plate") shortens radius, strike too
+  high (Chris McGee); target is a lowercase y. Bent lead arm can be a save
+  after a body drop (Trevor Hanifin).
+- DTL hips and shoulders too open with lead arm out and above plane → path
+  left.
+- DTL early extension: hips toward the ball, standing out of spine angle.
+
+### P8–P10
+- Arms stay extended through P8 because the body keeps turning (Al Cairns,
+  Eric Allen).
+- Finish balanced and held, trail foot up on its toe, body facing target
+  (Tap Tap). Held finish helped flight (Henry Minck).
