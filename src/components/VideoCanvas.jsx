@@ -573,13 +573,34 @@ const VideoCanvas = forwardRef(
       }
       onActivate();
       if (!src) return;
-      if (tool === 'move' && zoomLevel > 1.0) {
-        isPanning.current = true;
-        const { clientX, clientY } = getEventCoords(e);
-        lastPointerPos.current = { x: clientX, y: clientY };
+      if (tool === 'move') {
+        // The pointer reselects a placed drawing so its endpoints can be moved
+        // again (Mitchell, 2026-11-06). Empty space deselects, and pans when zoomed.
+        const pos = getPos(e);
+        const shown = shapes.map((s) => eligible(s) ? displayed(s) : { type: 'hidden' });
+        const handleId = selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])
+          ? hitTestHandle(pos, shown[selectedIndex], zoomLevel)
+          : null;
+        if (handleId) {
+          onUserPause?.();
+          draggingHandle.current = { shapeIndex: selectedIndex, handleId };
+          if (videoRef.current) videoRef.current.pause();
+          return;
+        }
+        const idx = findShapeAtPos(pos, shown, zoomLevel);
+        setSelectedIndex(idx);
+        if (idx >= 0) {
+          onUserPause?.();
+          if (videoRef.current) videoRef.current.pause();
+          return;
+        }
+        if (zoomLevel > 1.0) {
+          isPanning.current = true;
+          const { clientX, clientY } = getEventCoords(e);
+          lastPointerPos.current = { x: clientX, y: clientY };
+        }
         return;
       }
-      if (tool === 'move') return;
       onUserPause?.();
       const pos = getPos(e);
       if (selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])) {
