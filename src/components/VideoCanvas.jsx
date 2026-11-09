@@ -305,6 +305,16 @@ const VideoCanvas = forwardRef(
             videoRef.current.currentTime = clampToTrim(videoRef.current.currentTime + s);
           }
         },
+        // Move exactly n frames. Land 1 ms after the frame starts, so the
+        // readout shows the frame's own start time and float rounding can't
+        // drop the decoder onto the previous frame (1 ms < any frame at ≤240 fps).
+        stepFrames: (n, fps) => {
+          const video = videoRef.current;
+          if (!video || !fps) return;
+          const frame = Math.floor(video.currentTime * fps + 1e-3) + n;
+          video._swingstrSeekNonce = (video._swingstrSeekNonce ?? 0) + 1;
+          video.currentTime = clampToTrim(Math.max(0, frame / fps + 0.001));
+        },
         seekSource: async (t, signal) => {
           const token = src;
           videoRef.current?.pause();

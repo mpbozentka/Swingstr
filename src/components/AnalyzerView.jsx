@@ -78,7 +78,9 @@ export default function AnalyzerView({
   setActiveMenu,
   isPlaying,
   togglePlay,
-  seek,
+  stepFrames,
+  leftFps,
+  rightFps,
   clearShapes,
   undoLastShape,
   openSaveModal,
@@ -451,6 +453,7 @@ export default function AnalyzerView({
           <Timeline
             globalTime={globalTime}
             globalDuration={globalDuration}
+            fps={activeScreen === 'left' ? leftFps : rightFps}
             onScrub={onGlobalScrub}
             activeTrim={activeTrim}
             syncPoints={timelinePoints}
@@ -469,7 +472,7 @@ export default function AnalyzerView({
 
           <div className="transport-buttons flex items-center justify-center gap-5 pb-1">
             <button
-              onClick={() => seek(-0.05)}
+              onClick={() => stepFrames(-1)}
               aria-label="Previous frame"
               title="Previous frame (←)"
               className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-gray-200 hover:bg-white/15 hover:text-white transition-colors"
@@ -490,7 +493,7 @@ export default function AnalyzerView({
               )}
             </button>
             <button
-              onClick={() => seek(0.05)}
+              onClick={() => stepFrames(1)}
               aria-label="Next frame"
               title="Next frame (→)"
               className="w-8 h-8 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-gray-200 hover:bg-white/15 hover:text-white transition-colors"
