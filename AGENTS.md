@@ -43,3 +43,14 @@ only through the desktop app's native storage API. Guard the storage functions
 as well as the Save control, hide the website's student library, and preserve
 existing device data. Temporary analysis and user-initiated exports remain
 available on the website.
+
+## Desktop app stays current
+
+Mitchell requires every change to apply to the desktop app too (2026-11-02).
+The desktop app is `~/Desktop/Swingstr.app`, which runs this checkout through
+a symlink and serves its `dist/`. After any change, run `npm run build`. If
+the change touches `electron/` or `mcp/`, the open app must be restarted to
+pick it up, so say so. Desktop-only code (`electron/`) counts as part of the
+app, not as a separate step. Apps opened from Finder don't get the shell
+PATH, so native helpers must be found by absolute path, including
+`~/.local/bin`.

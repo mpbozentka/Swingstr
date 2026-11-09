@@ -7,6 +7,10 @@ import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 // stay legible against the darkened glass of the floating control bar.
 const SIDE_COLORS = { left: '#38bdf8', right: '#f472b6' };
 
+// Frame k is shown from k/fps until (k+1)/fps. The small epsilon keeps a
+// playhead sitting exactly on a frame boundary from reading one frame early.
+const frameAt = (t, fps) => Math.floor(t * fps + 1e-3);
+
 /**
  * The single video timeline: playhead, trim shading, sync points, and every
  * bookmark from both videos on one track. Left-video bookmarks sit above the
@@ -20,6 +24,7 @@ const SIDE_COLORS = { left: '#38bdf8', right: '#f472b6' };
 export default function Timeline({
   globalTime,
   globalDuration,
+  fps,
   onScrub,
   activeTrim,
   syncPoints,
@@ -65,8 +70,14 @@ export default function Timeline({
         <ChevronLeft size={16} />
       </button>
 
-      <span className="text-xs font-mono text-gray-200 w-12 text-right shrink-0">
-        {globalTime.toFixed(1)}s
+      {/* Exact playhead: time to the millisecond, plus the frame number
+          (0-based, so it matches ffmpeg) once the frame rate is measured. */}
+      <span
+        className="timeline-position text-xs font-mono text-gray-200 text-right shrink-0 whitespace-nowrap tabular-nums"
+        title={fps ? `${fps} fps — frame ${frameAt(globalTime, fps)}` : 'Measuring frame rate…'}
+      >
+        {globalTime.toFixed(3)}s
+        {fps ? <span className="text-purple-300 ml-1.5">f{frameAt(globalTime, fps)}</span> : null}
       </span>
 
       <div className="timeline-track flex-1 min-w-0 relative h-7 flex items-center">

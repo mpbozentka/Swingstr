@@ -51,7 +51,9 @@ const VideoCanvas = forwardRef(
     const frameRef = useRef(null);
     const sourceRef = useRef(null);
     const sourceId = src;
-    const [drawingScope, setDrawingScope] = useState({ kind: 'all' });
+    // Hand-drawn shapes always show for the whole video (Mitchell, 2026-11-02).
+    // The scope picker was removed on 2026-10-27, so nothing can narrow it.
+    const drawingScope = { kind: 'all' };
     const [scopeError, setScopeError] = useState('');
     const currentRect = () => computeVideoRect(videoRef.current, containerRef.current);
     const displayed = (shape) => shape.coordinates === 'source' ? mapShape(shape, ({ x, y }) => { const r = currentRect(); return { x: r.x + x * r.w, y: r.y + y * r.h }; }) : shape;
@@ -119,11 +121,9 @@ const VideoCanvas = forwardRef(
       const video = videoRef.current;
       if (!video?.requestVideoFrameCallback) return undefined;
       let id;
-      let first = true;
       const tick = (_now, meta) => {
         frameRef.current = { mediaTime: meta.mediaTime, presentedFrames: meta.presentedFrames };
         video._swingstrFrame = frameRef.current;
-        if (first) { setDrawingScope({ kind: 'frame', mediaTime: meta.mediaTime }); first = false; }
         id = video.requestVideoFrameCallback(tick);
       };
       id = video.requestVideoFrameCallback(tick);
@@ -139,6 +139,16 @@ const VideoCanvas = forwardRef(
     // O(n) state rebuild per pointermove; the canvas redraws via `draw()` deps
     // which still pick up shape changes when the gesture commits. (#22)
     const livePointsRef = useRef(null);
+    // Leaving the angle tool abandons a half-placed angle; otherwise its
+    // points reappear (and get reused) the next time the tool is picked.
+    useEffect(() => { if (tool !== 'angle') setPoints([]); }, [tool]);
+    // Unfinished angle points in normalized video coordinates, so control
+    // clients can see what's on screen before the third click.
+    const pendingAnglePoints = () => {
+      if (tool !== 'angle' || !points.length || !containerRef.current) return [];
+      const r = computeVideoRect(videoRef.current, containerRef.current);
+      return points.map((p) => ({ x: (p.x - r.x) / r.w, y: (p.y - r.y) / r.h }));
+    };
 
     /**
      * Compute the rect (in container/canvas pixels) where the video is
@@ -207,6 +217,16 @@ const VideoCanvas = forwardRef(
       shapesRef.current.filter(eligible).forEach((shape) => renderShape(ctx,
         mapShape(shape, ({ x, y }) => ({ x: x * vid.videoWidth, y: y * vid.videoHeight })),
         { zoomLevel: 1, video: vid, videoRect }));
+      const pending = pendingAnglePoints();
+      if (pending.length) {
+        const radius = Math.max(4, vid.videoWidth / 180);
+        ctx.fillStyle = color;
+        pending.forEach((p) => {
+          ctx.beginPath();
+          ctx.arc(p.x * vid.videoWidth, p.y * vid.videoHeight, radius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
 
       return tempCanvas.toDataURL('image/jpeg', 0.9);
     });
@@ -285,6 +305,16 @@ const VideoCanvas = forwardRef(
             videoRef.current.currentTime = clampToTrim(videoRef.current.currentTime + s);
           }
         },
+        // Move exactly n frames. Land 1 ms after the frame starts, so the
+        // readout shows the frame's own start time and float rounding can't
+        // drop the decoder onto the previous frame (1 ms < any frame at ≤240 fps).
+        stepFrames: (n, fps) => {
+          const video = videoRef.current;
+          if (!video || !fps) return;
+          const frame = Math.floor(video.currentTime * fps + 1e-3) + n;
+          video._swingstrSeekNonce = (video._swingstrSeekNonce ?? 0) + 1;
+          video.currentTime = clampToTrim(Math.max(0, frame / fps + 0.001));
+        },
         seekSource: async (t, signal) => {
           const token = src;
           videoRef.current?.pause();
@@ -345,6 +375,9 @@ const VideoCanvas = forwardRef(
             height: video?.videoHeight ?? 0,
             viewCrop: getViewCrop(),
             drawings: rect ? shapesRef.current.map((shape, index) => ({ index, ...shape })) : [],
+            pendingDrawing: pendingAnglePoints().length
+              ? { type: 'angle', points: pendingAnglePoints(), needed: 3, coordinates: 'source' }
+              : null,
           };
         },
         putControlShape: (args, defaults) => {
@@ -357,7 +390,7 @@ const VideoCanvas = forwardRef(
           if (index < 0 || index > next.length || ((args.index != null || args.id) && index === next.length)) throw new Error('Drawing not found.');
           const previous = next[index];
           const geometry = shapeFromCommand(args, { x: 0, y: 0, w: 1, h: 1 }, { color: previous?.color ?? defaults.color, width: previous?.width ?? defaults.width });
-          const visibility = args.visibility ?? previous?.visibility ?? (frameRef.current?.mediaTime != null ? { kind: 'frame', mediaTime: frameRef.current.mediaTime } : { kind: 'all' });
+          const visibility = args.visibility ?? previous?.visibility ?? { kind: 'all' };
           validateVisibility(visibility, video.duration, frameRef.current?.mediaTime != null);
           const shape = { ...previous, ...geometry, id: previous?.id ?? newId(), sourceId, coordinates: 'source', visibility, showAngleLabel: args.showAngleLabel ?? previous?.showAngleLabel ?? false };
           next[index] = shape; shapesRef.current = next; setShapes(next); setSelectedIndex(-1);
@@ -550,13 +583,34 @@ const VideoCanvas = forwardRef(
       }
       onActivate();
       if (!src) return;
-      if (tool === 'move' && zoomLevel > 1.0) {
-        isPanning.current = true;
-        const { clientX, clientY } = getEventCoords(e);
-        lastPointerPos.current = { x: clientX, y: clientY };
+      if (tool === 'move') {
+        // The pointer reselects a placed drawing so its endpoints can be moved
+        // again (Mitchell, 2026-11-06). Empty space deselects, and pans when zoomed.
+        const pos = getPos(e);
+        const shown = shapes.map((s) => eligible(s) ? displayed(s) : { type: 'hidden' });
+        const handleId = selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])
+          ? hitTestHandle(pos, shown[selectedIndex], zoomLevel)
+          : null;
+        if (handleId) {
+          onUserPause?.();
+          draggingHandle.current = { shapeIndex: selectedIndex, handleId };
+          if (videoRef.current) videoRef.current.pause();
+          return;
+        }
+        const idx = findShapeAtPos(pos, shown, zoomLevel);
+        setSelectedIndex(idx);
+        if (idx >= 0) {
+          onUserPause?.();
+          if (videoRef.current) videoRef.current.pause();
+          return;
+        }
+        if (zoomLevel > 1.0) {
+          isPanning.current = true;
+          const { clientX, clientY } = getEventCoords(e);
+          lastPointerPos.current = { x: clientX, y: clientY };
+        }
         return;
       }
-      if (tool === 'move') return;
       onUserPause?.();
       const pos = getPos(e);
       if (selectedIndex >= 0 && selectedIndex < shapes.length && eligible(shapes[selectedIndex])) {

@@ -26,7 +26,7 @@ async function waitForVideo(pane, ready) {
 export function useSwingstrControl({
   leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
   setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
-  togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+  togglePlay, scrubTo, seek, stepFrames, changeSpeed, openSavedVideo, workflow,
   handleUpload, setUrlSource, saveSwing, setStudents, newId,
 }) {
   useEffect(() => {
@@ -127,7 +127,8 @@ export function useSwingstrControl({
             if (sync) { pane('left')?.pause(); pane('right')?.pause(); }
             else target().pause();
             if (args.action === 'seek') scrubTo(Math.min(args.seconds, target().duration));
-            else seek(args.frames / (args.fps ?? 30));
+            else if (args.fps) seek(args.frames / args.fps);
+            else stepFrames(args.frames);
             await waitForVideo(target, (v) => !v.seeking && v.readyState >= 2);
           }
           await settle();
@@ -167,6 +168,6 @@ export function useSwingstrControl({
     });
   }, [leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
     setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
-    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+    togglePlay, scrubTo, seek, stepFrames, changeSpeed, openSavedVideo, workflow,
     handleUpload, setUrlSource, saveSwing, setStudents, newId]);
 }

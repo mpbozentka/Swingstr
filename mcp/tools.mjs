@@ -25,11 +25,11 @@ const shape = {
   showAngleLabel: z.boolean().optional(),
 };
 export const toolDefinitions = {
-  get_state: { description: 'Read Swingstr playback, view, selected tool, video dimensions and drawings. Drawing coordinates are normalized video coordinates, x/y from 0 to 1.', schema: z.object({}).strict(), readOnly: true },
-  get_frame: { description: 'See the current decoded video frame with drawings, at native video resolution. Use its dimensions to identify normalized drawing coordinates. Waits for pending seeks.', schema: z.object({ side }).strict(), readOnly: true },
+  get_state: { description: 'Read Swingstr playback, view, selected tool, video dimensions, drawings and any half-placed drawing (pendingDrawing). Drawing coordinates are normalized video coordinates, x/y from 0 to 1.', schema: z.object({}).strict(), readOnly: true },
+  get_frame: { description: 'See the current decoded video frame with drawings, including half-placed angle points, at native video resolution. Use its dimensions to identify normalized drawing coordinates. Waits for pending seeks.', schema: z.object({ side }).strict(), readOnly: true },
   list_swings: { description: 'List saved swing IDs and labels grouped by student name. Omits student contact details and notes.', schema: z.object({}).strict(), readOnly: true },
   open_swing: { description: 'Open a saved local swing by studentId and swingId from list_swings. Waits until the video is ready. Replaces the selected pane; drawings in that pane are cleared.', schema: z.object({ studentId: z.string().min(1), swingId: z.string().min(1), side }).strict() },
-  playback: { description: 'Play, pause, seek in seconds, step by signed frames, or set speed. Uses existing active/synced playback controls. Frame stepping is a time estimate using fps (default 30), not decoded frame indexing.', schema: z.object({ action: z.enum(['play', 'pause', 'seek', 'step', 'speed']), seconds: z.number().min(0).optional(), frames: z.number().int().min(-300).max(300).optional(), fps: z.number().min(1).max(240).optional(), rate: z.number().min(0.1).max(4).optional() }).strict().superRefine((a, ctx) => {
+  playback: { description: 'Play, pause, seek in seconds, step by signed frames, or set speed. Uses existing active/synced playback controls. Without fps, frame stepping moves exactly that many frames using the measured frame rate of the video; with fps, it moves frames / fps seconds.', schema: z.object({ action: z.enum(['play', 'pause', 'seek', 'step', 'speed']), seconds: z.number().min(0).optional(), frames: z.number().int().min(-300).max(300).optional(), fps: z.number().min(1).max(240).optional(), rate: z.number().min(0.1).max(4).optional() }).strict().superRefine((a, ctx) => {
     const required = { seek: 'seconds', step: 'frames', speed: 'rate' }[a.action];
     if (required && a[required] == null) ctx.addIssue({ code: 'custom', message: `${required} is required for ${a.action}` });
   }) },

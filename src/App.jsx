@@ -8,6 +8,7 @@ import { NEW_STUDENT } from './components/SaveModal';
 import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob, videoSavingEnabled } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
+import useFrameRate from './hooks/useFrameRate';
 import { useMarkers } from './hooks/useMarkers';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useGoogleDrive } from './hooks/useGoogleDrive';
@@ -72,6 +73,8 @@ export default function Swingstr() {
     leftDriveFileId, rightDriveFileId,
     handleUpload, handleUrlUpload: setUrlSource, handleDriveLoad, handleClearVideo,
   } = useVideoSources({ onClear: handleSourceClear });
+  const leftFps = useFrameRate(leftVideo);
+  const rightFps = useFrameRate(rightVideo);
 
   const requestUrlUpload = useCallback((side) => {
     setUrlPromptSide(side);
@@ -262,6 +265,21 @@ export default function Swingstr() {
     }
   });
 
+  // Frame-exact stepping for the arrow keys and frame buttons. Each video uses
+  // its own frame rate; until that's known, fall back to 1/30 s.
+  const stepFrames = ((n) => {
+    workflow.pauseComparison();
+    const step = (ref, fps) => {
+      if (fps) ref.current?.stepFrames(n, fps);
+      else ref.current?.seekRelative(n / 30);
+    };
+    if (sync) {
+      step(leftRef, leftFps);
+      step(rightRef, rightFps);
+    } else if (activeScreen === 'left') step(leftRef, leftFps);
+    else step(rightRef, rightFps);
+  });
+
   const changeSpeed = ((newSpeed) => {
     workflow.pauseComparison();
     setSpeed(newSpeed);
@@ -385,7 +403,7 @@ export default function Swingstr() {
   useSwingstrControl({
     leftRef, rightRef, students, view, layout, sync, activeScreen, tool, color, lineWidth,
     setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
-    togglePlay, scrubTo, seek, changeSpeed, openSavedVideo, workflow,
+    togglePlay, scrubTo, seek, stepFrames, changeSpeed, openSavedVideo, workflow,
     handleUpload, setUrlSource, saveSwing, setStudents, newId,
   });
 
@@ -436,7 +454,7 @@ export default function Swingstr() {
           return;
         }
         e.preventDefault();
-        seek(dir * 0.05);
+        stepFrames(dir);
         return;
       }
       // , . < > step checkpoints too, with or without P held — the shifted
@@ -530,7 +548,9 @@ export default function Swingstr() {
       setActiveMenu={setActiveMenu}
       isPlaying={workflow.comparison.mode === 'aligned' ? workflow.playing : isPlaying}
       togglePlay={togglePlay}
-      seek={seek}
+      stepFrames={stepFrames}
+      leftFps={leftFps}
+      rightFps={rightFps}
       clearShapes={clearShapes}
       undoLastShape={undoLastShape}
       openSaveModal={() => { if (videoSavingEnabled()) setShowSaveModal(true); }}
