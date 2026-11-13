@@ -339,6 +339,15 @@ const VideoCanvas = forwardRef(
           draggingHandle.current = null;
           return true;
         },
+        // Puts back drawings saved with a swing. They're stored in normalized
+        // video coordinates, so they land in the same place at any pane size.
+        restoreShapes: (saved) => {
+          const next = (saved ?? []).map((shape) => ({ ...shape, id: shape.id ?? newId(), sourceId, coordinates: 'source', visibility: shape.visibility ?? { kind: 'all' } }));
+          shapesRef.current = next;
+          setShapes(next);
+          setSelectedIndex(-1);
+          draggingHandle.current = null;
+        },
         clearShapes: () => {
           shapesRef.current = [];
           setShapes([]);

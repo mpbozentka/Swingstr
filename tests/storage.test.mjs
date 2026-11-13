@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadStudents, saveStudents, saveVideoBlob, videoSavingEnabled } from '../src/utils/storage.js';
+import { loadStudents, saveStudents, saveVideoBlob, videoSavingEnabled, libraryLoadError } from '../src/utils/storage.js';
 
 function browserGlobal(t, name, value) {
   const original = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -47,4 +47,35 @@ test('desktop library can still save and reopen videos and student records', asy
   saveStudents(students);
   assert.deepEqual(saveRecords.mock.calls[0].arguments, [{ version: 2, students }]);
   assert.deepEqual(loadStudents(), students);
+});
+
+test('an unreadable desktop library pauses saving instead of overwriting it', async (t) => {
+  const saveRecords = t.mock.fn(async () => {});
+  const setItem = t.mock.fn();
+  browserGlobal(t, 'localStorage', { setItem, getItem: () => null });
+  for (const payload of [{ loadError: 'students.json could not be read' }, { version: 99, somethingElse: true }]) {
+    browserGlobal(t, 'window', { swingstrDesktop: {
+      enabled: true,
+      saveVideo: async () => {},
+      saveStudents: saveRecords,
+      loadStudents: () => payload,
+    } });
+    assert.deepEqual(loadStudents(), []);
+    assert.ok(libraryLoadError());
+    await saveStudents([{ id: 'demo-student', name: 'Demo Student', videos: [] }]);
+  }
+  assert.equal(saveRecords.mock.callCount(), 0);
+  assert.equal(setItem.mock.callCount(), 0);
+});
+
+test('a failed desktop write is reported to the caller', async (t) => {
+  browserGlobal(t, 'localStorage', { setItem() {} });
+  browserGlobal(t, 'window', { swingstrDesktop: {
+    enabled: true,
+    saveVideo: async () => {},
+    saveStudents: async () => { throw new Error('disk full'); },
+    loadStudents: () => ({ version: 2, students: [] }),
+  } });
+  loadStudents();
+  await assert.rejects(saveStudents([]), /disk full/);
 });

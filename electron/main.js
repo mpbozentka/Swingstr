@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
-import { readFile, writeFile, readdir, unlink, stat } from 'node:fs/promises'
+import { readFile, writeFile, readdir, unlink, stat, rename, copyFile } from 'node:fs/promises'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,6 +54,19 @@ function youtubeDir() {
 
 function studentsPath() {
   return path.join(libraryDir(), 'students.json')
+}
+
+// The previous good copy of students.json, refreshed on every save.
+function studentsBackupPath() {
+  return path.join(libraryDir(), 'students.backup.json')
+}
+
+function readStudentsFile(file) {
+  const parsed = JSON.parse(readFileSync(file, 'utf8'))
+  if (!Array.isArray(parsed) && !Array.isArray(parsed?.students)) {
+    throw new Error('it has no student list')
+  }
+  return parsed
 }
 
 // Videos live under videos/<Student Name>/<label>__<id>.<ext> so the folder is
@@ -298,23 +311,60 @@ function registerIpc() {
     event.returnValue = libraryDir()
   })
 
+  // A missing file means a brand-new library (null). A file that exists but
+  // can't be read falls back to the backup; if that fails too, the renderer
+  // gets { loadError } and must not save, or it would overwrite the library.
   ipcMain.on('load-students', (event) => {
     try {
       ensureLibrarySync()
-      if (!existsSync(studentsPath())) {
-        event.returnValue = null
-        return
-      }
-      event.returnValue = JSON.parse(readFileSync(studentsPath(), 'utf8'))
+    } catch (err) {
+      event.returnValue = { loadError: `Couldn't open the Swingstr Library folder: ${err.message}` }
+      return
+    }
+    const main = studentsPath()
+    const backup = studentsBackupPath()
+    if (!existsSync(main) && !existsSync(backup)) {
+      event.returnValue = null
+      return
+    }
+    try {
+      event.returnValue = readStudentsFile(main)
+      return
     } catch (err) {
       console.warn('[swingstr] failed to read students.json', err)
-      event.returnValue = null
+    }
+    try {
+      const restored = readStudentsFile(backup)
+      console.warn('[swingstr] students.json was unreadable; loaded students.backup.json instead')
+      event.returnValue = restored
+    } catch (err) {
+      console.error('[swingstr] students.json and its backup are both unreadable', err)
+      event.returnValue = { loadError: `students.json in ${libraryDir()} couldn't be read, and neither could the backup.` }
     }
   })
 
+  // Write to a temporary file and swap it in, so a crash mid-save can never
+  // leave a half-written students.json. The old file becomes the backup.
   ipcMain.handle('save-students', async (_event, payload) => {
+    if (!Array.isArray(payload?.students)) throw new Error('Refusing to save a library with no student list.')
     ensureLibrarySync()
-    await writeFile(studentsPath(), JSON.stringify(payload, null, 2))
+    const main = studentsPath()
+    const temp = `${main}.${randomUUID()}.tmp`
+    await writeFile(temp, JSON.stringify(payload, null, 2))
+    try {
+      if (existsSync(main)) {
+        try {
+          readStudentsFile(main)
+          await copyFile(main, studentsBackupPath())
+        } catch {
+          // The current file is unreadable — keep the older backup instead.
+        }
+      }
+      await rename(temp, main)
+    } catch (err) {
+      await unlink(temp).catch(() => {})
+      throw err
+    }
   })
 
   ipcMain.handle('save-video', async (_event, videoId, buffer, ext, meta) => {

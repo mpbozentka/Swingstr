@@ -143,19 +143,33 @@ function migrate(parsed) {
       })),
     };
   }
-  if (parsed && parsed.version === SCHEMA_VERSION) return parsed;
-  return { version: SCHEMA_VERSION, students: DEFAULT_STUDENTS };
+  if (Array.isArray(parsed?.students)) return { ...parsed, version: SCHEMA_VERSION };
+  // Anything else is a file we don't understand. Treating it as "no
+  // students" would let the next save overwrite it, so refuse instead.
+  throw new Error('the student library is in a format Swingstr does not recognise');
+}
+
+// Set when the desktop library exists but couldn't be read. While set, the
+// app shows an empty list and never saves, so the file on disk is left alone.
+let loadError = null;
+
+export function libraryLoadError() {
+  return loadError;
 }
 
 export function loadStudents() {
+  loadError = null;
   if (!videoSavingEnabled()) return DEFAULT_STUDENTS;
   const desktop = desktopApi();
   if (desktop?.loadStudents) {
     try {
       const payload = desktop.loadStudents();
+      if (payload?.loadError) throw new Error(payload.loadError);
       if (payload) return migrate(payload).students;
     } catch (err) {
-      console.warn('[storage] failed to read desktop library; falling back', err);
+      console.error('[storage] failed to read desktop library; saving is paused', err);
+      loadError = err.message;
+      return [];
     }
   }
   if (typeof localStorage === 'undefined') return DEFAULT_STUDENTS;
@@ -170,8 +184,16 @@ export function loadStudents() {
   }
 }
 
-export function saveStudents(students) {
+/**
+ * Returns a promise that rejects if the desktop library write fails, so the
+ * caller can tell the user. Does nothing while a failed load is unresolved.
+ */
+export async function saveStudents(students) {
   if (!videoSavingEnabled()) return;
+  if (loadError) {
+    console.warn('[storage] not saving: the student library failed to load');
+    return;
+  }
   const payload = { version: SCHEMA_VERSION, students };
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
@@ -179,11 +201,7 @@ export function saveStudents(students) {
     console.warn('[storage] failed to persist students', err);
   }
   const desktop = desktopApi();
-  if (desktop?.saveStudents) {
-    desktop.saveStudents(payload).catch((err) => {
-      console.warn('[storage] failed to write desktop library', err);
-    });
-  }
+  if (desktop?.saveStudents) await desktop.saveStudents(payload);
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

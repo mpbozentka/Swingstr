@@ -5,7 +5,7 @@ import Toast from './components/Toast';
 import UrlPromptModal from './components/UrlPromptModal';
 import { NEW_STUDENT } from './components/SaveModal';
 
-import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob, videoSavingEnabled } from './utils/storage';
+import { loadStudents, saveStudents, saveVideoBlob, loadVideoBlob, videoSavingEnabled, libraryLoadError } from './utils/storage';
 import { useDebouncedEffect } from './hooks/useDebouncedEffect';
 import { useVideoSources } from './hooks/useVideoSources';
 import useFrameRate from './hooks/useFrameRate';
@@ -38,6 +38,9 @@ export default function Swingstr() {
   useEffect(() => { globalTimeRef.current = globalTime; }, [globalTime]);
 
   const [students, setStudents] = useState(() => loadStudents());
+  // Read once at startup: if the library file couldn't be read, saving stays
+  // paused for the session and a banner says so.
+  const [libraryError] = useState(() => libraryLoadError());
   const [saveData, setSaveData] = useState({ studentId: '', label: '', newStudentName: '' });
   const [editingStudent, setEditingStudent] = useState(null);
 
@@ -89,9 +92,29 @@ export default function Swingstr() {
 
   const { streamFile: streamDriveFile } = useGoogleDrive(googleAuth.accessToken);
 
+  const {
+    markers,
+    setMarker: handleSetMarker,
+    removeMarker: handleRemoveMarker,
+    clearSide: clearMarkers,
+  } = useMarkers();
+
+  // Checkpoints and drawings saved with a swing, waiting for its video to
+  // finish loading into a pane. Loading a video wipes both, so they're put
+  // back afterwards by the effects further down.
+  const pendingRestoreRef = useRef({ left: null, right: null });
+  const pendingShapesRef = useRef({ left: null, right: null });
+  const [restoreTick, setRestoreTick] = useState(0);
+
   // Opens a video saved on a student's page into the analyzer. Each record
   // type lives somewhere different: app storage, Google Drive, or a web link.
   const openSavedVideo = useCallback(async (side, video) => {
+    const saved = { markers: video.markers ?? [], drawings: video.drawings ?? [] };
+    const currentSrc = side === 'left' ? leftVideo : rightVideo;
+    // Reopening a web link that's already in the pane won't reload it, so
+    // nothing would trigger the restore. Hand it over directly instead.
+    const sameSource = video.source === 'remote' && video.remoteUrl === currentSrc;
+    pendingRestoreRef.current[side] = sameSource ? null : saved;
     try {
       if (video.source === 'idb') {
         const blob = await loadVideoBlob(video.videoId);
@@ -111,33 +134,59 @@ export default function Swingstr() {
       console.error('[openSavedVideo] failed', err);
       const reason = err.message === 'SESSION_EXPIRED' ? 'Google sign-in expired — sign in again' : err.message;
       setToast({ message: `Couldn't open "${video.label}": ${reason}`, kind: 'error' });
+      pendingRestoreRef.current[side] = null;
       return;
+    }
+    if (sameSource) {
+      clearMarkers(side);
+      saved.markers.forEach((m) => handleSetMarker(side, m.index, m.time));
+      pendingShapesRef.current[side] = saved.drawings;
+      setRestoreTick((n) => n + 1);
     }
     if (side === 'right') setLayout('split');
     setActiveScreen(side);
     setView('analyze');
     return true;
-  }, [handleUpload, handleDriveLoad, setUrlSource, streamDriveFile]);
-
-  const {
-    markers,
-    setMarker: handleSetMarker,
-    removeMarker: handleRemoveMarker,
-    clearSide: clearMarkers,
-  } = useMarkers();
+  }, [handleUpload, handleDriveLoad, setUrlSource, streamDriveFile, leftVideo, rightVideo, clearMarkers, handleSetMarker]);
 
   // P-markers are timestamps into one particular swing. Loading a new video
   // into a side clears that side's markers; the other side keeps its own, so
   // left and right can hold different swings each with their own positions.
-  useEffect(() => { clearMarkers('left'); }, [leftVideo, clearMarkers]);
-  useEffect(() => { clearMarkers('right'); }, [rightVideo, clearMarkers]);
+  // A swing opened from the library brings its own checkpoints back.
+  const resetSide = useCallback((side) => {
+    clearMarkers(side);
+    const saved = pendingRestoreRef.current[side];
+    if (!saved) return;
+    pendingRestoreRef.current[side] = null;
+    saved.markers.forEach((m) => handleSetMarker(side, m.index, m.time));
+    pendingShapesRef.current[side] = saved.drawings;
+  }, [clearMarkers, handleSetMarker]);
+  useEffect(() => { resetSide('left'); }, [leftVideo, resetSide]);
+  useEffect(() => { resetSide('right'); }, [rightVideo, resetSide]);
+
+  // Drawings go back once the pane exists. It may not on the first try: the
+  // analyzer isn't on screen while the student library is open.
+  useEffect(() => {
+    ['left', 'right'].forEach((side) => {
+      const drawings = pendingShapesRef.current[side];
+      const pane = (side === 'left' ? leftRef : rightRef).current;
+      if (!drawings || !pane?.restoreShapes) return;
+      pendingShapesRef.current[side] = null;
+      if (drawings.length) pane.restoreShapes(drawings);
+    });
+  }, [leftVideo, rightVideo, view, restoreTick]);
 
   const workflow = useSwingWorkflow({ leftRef, rightRef, markers, setMarker: handleSetMarker, removeMarker: handleRemoveMarker, leftVideo, rightVideo });
   const trims = Object.fromEntries(['left', 'right'].map((side) => [side, workflow.selections[side] ? workflow.resolved(side) : { start: null, end: null }]));
 
   // Debounced — every keystroke in a student's notes textarea would otherwise
   // serialize the whole CRM (#21).
-  useDebouncedEffect(() => saveStudents(students), [students], 300);
+  useDebouncedEffect(() => {
+    saveStudents(students).catch((err) => {
+      console.error('[students] desktop library write failed', err);
+      setToast({ message: "Couldn't save the student library. Your last change may be lost.", kind: 'error' });
+    });
+  }, [students], 300);
 
   const handleSetSyncPoint = useCallback((side) => {
     const ref = side === 'left' ? leftRef : rightRef;
@@ -353,7 +402,16 @@ export default function Swingstr() {
     if (studentId && !existing) throw new Error('Student not found.');
 
     const videoId = newId();
-    const baseRecord = { id: videoId, label, date: new Date().toLocaleDateString() };
+    // Checkpoints and drawings travel with the swing so reopening it later
+    // shows the same lesson notes on the video.
+    const pane = (side === 'left' ? leftRef : rightRef).current;
+    const baseRecord = {
+      id: videoId,
+      label,
+      date: new Date().toLocaleDateString(),
+      markers: markers[side].map(({ index, time }) => ({ index, time })),
+      drawings: (pane?.getShapes() ?? []).map(({ sourceId: _sourceId, ...shape }) => shape),
+    };
     // Drive videos store only the file ID — re-fetched from Drive on demand.
     // Local uploads go to the desktop library. Remote URLs stored as-is.
     const record = targetDriveFileId
@@ -378,7 +436,7 @@ export default function Swingstr() {
       ]);
     }
     return { studentId: savedStudentId, record };
-  }, [students, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
+  }, [students, markers, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 
   const saveToStudent = useCallback(async () => {
     if (!videoSavingEnabled()) return;
@@ -489,6 +547,12 @@ export default function Swingstr() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
 
+  const libraryBanner = libraryError && videoSavingEnabled() && (
+    <div role="alert" className="fixed top-0 inset-x-0 z-[300] bg-red-700 text-white text-sm px-4 py-2 text-center">
+      Swingstr couldn't read your student library, so saving is paused to protect it. {libraryError}
+    </div>
+  );
+
   const toastEl = (
     <Toast
       message={toast?.message}
@@ -512,6 +576,7 @@ export default function Swingstr() {
           onDriveLoad={handleDriveLoad}
           onOpenVideo={openSavedVideo}
         />
+        {libraryBanner}
         {toastEl}
       </>
     );
@@ -596,6 +661,7 @@ export default function Swingstr() {
       onSubmit={handleUrlSubmit}
       onClose={() => setUrlPromptSide(null)}
     />
+    {libraryBanner}
     {toastEl}
     </>
   );
