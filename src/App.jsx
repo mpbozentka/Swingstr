@@ -14,6 +14,7 @@ import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useGoogleDrive } from './hooks/useGoogleDrive';
 import { useSwingWorkflow } from './hooks/useSwingWorkflow';
 import { useSwingstrControl } from './hooks/useSwingstrControl';
+import { serializeMarkers, serializeDrawings } from './utils/swingAnnotations';
 
 const newId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -105,6 +106,12 @@ export default function Swingstr() {
   const pendingRestoreRef = useRef({ left: null, right: null });
   const pendingShapesRef = useRef({ left: null, right: null });
   const [restoreTick, setRestoreTick] = useState(0);
+  // Which saved swing (record id) each pane is showing, so annotations can be
+  // written back to that swing and nowhere else. Cleared when any other video
+  // is loaded into the pane.
+  const paneSwingRef = useRef({ left: null, right: null });
+  const pendingSwingRef = useRef({ left: null, right: null });
+  const paneSwing = useCallback((side) => paneSwingRef.current[side], []);
 
   // Opens a video saved on a student's page into the analyzer. Each record
   // type lives somewhere different: app storage, Google Drive, or a web link.
@@ -115,6 +122,7 @@ export default function Swingstr() {
     // nothing would trigger the restore. Hand it over directly instead.
     const sameSource = video.source === 'remote' && video.remoteUrl === currentSrc;
     pendingRestoreRef.current[side] = sameSource ? null : saved;
+    pendingSwingRef.current[side] = sameSource ? null : video.id;
     try {
       if (video.source === 'idb') {
         const blob = await loadVideoBlob(video.videoId);
@@ -135,9 +143,11 @@ export default function Swingstr() {
       const reason = err.message === 'SESSION_EXPIRED' ? 'Google sign-in expired — sign in again' : err.message;
       setToast({ message: `Couldn't open "${video.label}": ${reason}`, kind: 'error' });
       pendingRestoreRef.current[side] = null;
+      pendingSwingRef.current[side] = null;
       return;
     }
     if (sameSource) {
+      paneSwingRef.current[side] = video.id;
       clearMarkers(side);
       saved.markers.forEach((m) => handleSetMarker(side, m.index, m.time));
       pendingShapesRef.current[side] = saved.drawings;
@@ -155,6 +165,8 @@ export default function Swingstr() {
   // A swing opened from the library brings its own checkpoints back.
   const resetSide = useCallback((side) => {
     clearMarkers(side);
+    paneSwingRef.current[side] = pendingSwingRef.current[side];
+    pendingSwingRef.current[side] = null;
     const saved = pendingRestoreRef.current[side];
     if (!saved) return;
     pendingRestoreRef.current[side] = null;
@@ -175,6 +187,24 @@ export default function Swingstr() {
       if (drawings.length) pane.restoreShapes(drawings);
     });
   }, [leftVideo, rightVideo, view, restoreTick]);
+
+  // A pane's current checkpoints and drawings, in the form saved with a swing.
+  const captureAnnotations = useCallback((side) => ({
+    markers: serializeMarkers(markers[side]),
+    drawings: serializeDrawings((side === 'left' ? leftRef : rightRef).current?.getShapes() ?? []),
+  }), [markers]);
+
+  // Put checkpoints and/or drawings onto a pane. markers: null leaves the
+  // pane's checkpoints alone; append adds drawings instead of replacing them.
+  const applyAnnotations = useCallback((side, { markers: savedMarkers = null, drawings = [] }, { append = false } = {}) => {
+    const pane = (side === 'left' ? leftRef : rightRef).current;
+    if (!pane?.restoreShapes) throw new Error('Open the analyzer before applying drawings.');
+    if (savedMarkers) {
+      clearMarkers(side);
+      savedMarkers.forEach((m) => handleSetMarker(side, m.index, m.time));
+    }
+    pane.restoreShapes(drawings, { append });
+  }, [clearMarkers, handleSetMarker]);
 
   const workflow = useSwingWorkflow({ leftRef, rightRef, markers, setMarker: handleSetMarker, removeMarker: handleRemoveMarker, leftVideo, rightVideo });
   const trims = Object.fromEntries(['left', 'right'].map((side) => [side, workflow.selections[side] ? workflow.resolved(side) : { start: null, end: null }]));
@@ -404,13 +434,11 @@ export default function Swingstr() {
     const videoId = newId();
     // Checkpoints and drawings travel with the swing so reopening it later
     // shows the same lesson notes on the video.
-    const pane = (side === 'left' ? leftRef : rightRef).current;
     const baseRecord = {
       id: videoId,
       label,
       date: new Date().toLocaleDateString(),
-      markers: markers[side].map(({ index, time }) => ({ index, time })),
-      drawings: (pane?.getShapes() ?? []).map(({ sourceId: _sourceId, ...shape }) => shape),
+      ...captureAnnotations(side),
     };
     // Drive videos store only the file ID — re-fetched from Drive on demand.
     // Local uploads go to the desktop library. Remote URLs stored as-is.
@@ -435,8 +463,9 @@ export default function Swingstr() {
         { id: savedStudentId, name: newStudentName, email: '', phone: '', notes: '', videos: [record] },
       ]);
     }
+    paneSwingRef.current[side] = record.id;
     return { studentId: savedStudentId, record };
-  }, [students, markers, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
+  }, [students, captureAnnotations, leftFile, rightFile, leftVideo, rightVideo, leftDriveFileId, rightDriveFileId]);
 
   const saveToStudent = useCallback(async () => {
     if (!videoSavingEnabled()) return;
@@ -463,6 +492,8 @@ export default function Swingstr() {
     setView, setLayout, setSync, setActiveScreen, setTool, setColor, setLineWidth,
     togglePlay, scrubTo, seek, stepFrames, changeSpeed, openSavedVideo, workflow,
     handleUpload, setUrlSource, saveSwing, setStudents, newId,
+    leftFps, rightFps, captureAnnotations, applyAnnotations,
+    paneSwing,
   });
 
   // Tracks whether P is currently physically held — no native modifier flag

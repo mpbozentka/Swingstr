@@ -60,7 +60,7 @@ test('real MCP stdio client discovers tools and calls the private socket; invali
     env: { ...process.env, SWINGSTR_SOCKET: socketPath },
   }));
   t.after(() => client.close());
-  assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ['get_state', 'get_frame', 'list_swings', 'open_swing', 'playback', 'select_tool', 'set_style', 'configure_view', 'draw_shape', 'update_shape', 'set_marker', 'remove_marker', 'seek_position', 'set_segment', 'clear_segment', 'configure_comparison', 'remove_drawing', 'start_export', 'get_export_status', 'cancel_export', 'load_video', 'save_swing', 'create_student', 'update_student', 'get_student'].sort());
+  assert.deepEqual((await client.listTools()).tools.map((tool) => tool.name).sort(), ['get_state', 'get_frame', 'list_swings', 'open_swing', 'playback', 'select_tool', 'set_style', 'configure_view', 'draw_shape', 'update_shape', 'set_marker', 'remove_marker', 'seek_position', 'set_segment', 'clear_segment', 'configure_comparison', 'remove_drawing', 'start_export', 'get_export_status', 'cancel_export', 'load_video', 'save_swing', 'create_student', 'update_student', 'get_student', 'get_frames', 'save_annotations', 'load_annotations', 'save_template', 'list_templates', 'apply_template'].sort());
   const response = await client.callTool({ name: 'get_state', arguments: {} });
   assert.deepEqual(JSON.parse(response.content[0].text), { playing: false, time: 1.25 });
   await assert.rejects(callControl(socketPath, 'draw_shape', { type: 'line', points: [] }));

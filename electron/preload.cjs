@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('swingstrDesktop', {
   libraryDir: () => ipcRenderer.sendSync('library-dir'),
   loadStudents: () => ipcRenderer.sendSync('load-students'),
   saveStudents: (payload) => ipcRenderer.invoke('save-students', payload),
+  loadTemplates: () => ipcRenderer.invoke('load-templates'),
+  saveTemplates: (templates) => ipcRenderer.invoke('save-templates', templates),
   saveVideo: (videoId, buffer, ext, meta) => ipcRenderer.invoke('save-video', videoId, buffer, ext, meta),
   loadVideo: (videoId) => ipcRenderer.invoke('load-video', videoId),
   deleteVideo: (videoId) => ipcRenderer.invoke('delete-video', videoId),

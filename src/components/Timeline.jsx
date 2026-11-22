@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { Bookmark, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { DEFAULT_MARKER_LABELS } from '../constants/markers';
+import { frameAt } from '../utils/agentFrames';
 
 // One colour per video, used everywhere a bookmark is drawn. sky-400 and
 // pink-400 sit far apart in hue and stay distinguishable to CVD viewers; both
 // stay legible against the darkened glass of the floating control bar.
 const SIDE_COLORS = { left: '#38bdf8', right: '#f472b6' };
-
-// Frame k is shown from k/fps until (k+1)/fps. The small epsilon keeps a
-// playhead sitting exactly on a frame boundary from reading one frame early.
-const frameAt = (t, fps) => Math.floor(t * fps + 1e-3);
 
 /**
  * The single video timeline: playhead, trim shading, sync points, and every

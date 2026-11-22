@@ -56,6 +56,10 @@ function studentsPath() {
   return path.join(libraryDir(), 'students.json')
 }
 
+function templatesPath() {
+  return path.join(libraryDir(), 'templates.json')
+}
+
 // The previous good copy of students.json, refreshed on every save.
 function studentsBackupPath() {
   return path.join(libraryDir(), 'students.backup.json')
@@ -361,6 +365,31 @@ function registerIpc() {
         }
       }
       await rename(temp, main)
+    } catch (err) {
+      await unlink(temp).catch(() => {})
+      throw err
+    }
+  })
+
+  // Named drawing templates for agent control. A missing file is an empty
+  // list; an unreadable one is an error, so a save can never replace it.
+  ipcMain.handle('load-templates', async () => {
+    ensureLibrarySync()
+    const file = templatesPath()
+    if (!existsSync(file)) return []
+    const parsed = JSON.parse(await readFile(file, 'utf8'))
+    if (!Array.isArray(parsed?.templates)) throw new Error(`templates.json in ${libraryDir()} has no template list.`)
+    return parsed.templates
+  })
+
+  ipcMain.handle('save-templates', async (_event, templates) => {
+    if (!Array.isArray(templates)) throw new Error('Refusing to save templates without a list.')
+    ensureLibrarySync()
+    const file = templatesPath()
+    const temp = `${file}.${randomUUID()}.tmp`
+    await writeFile(temp, JSON.stringify({ version: 1, templates }, null, 2))
+    try {
+      await rename(temp, file)
     } catch (err) {
       await unlink(temp).catch(() => {})
       throw err

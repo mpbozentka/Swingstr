@@ -6,16 +6,18 @@ import { toolDefinitions } from './tools.mjs';
 import { callControl } from './transport.mjs';
 
 const socketPath = process.env.SWINGSTR_SOCKET || path.join(homedir(), 'Library', 'Application Support', 'Swingstr', 'control', 'bridge.sock');
-const server = new McpServer({ name: 'swingstr', version: '0.1.0' });
+const server = new McpServer({ name: 'swingstr', version: '0.2.0' });
+// Tools that replace drawings, checkpoints or saved data.
+const DESTRUCTIVE = new Set(['open_swing', 'update_shape', 'save_annotations', 'load_annotations', 'save_template', 'apply_template']);
 for (const [name, tool] of Object.entries(toolDefinitions)) {
   server.registerTool(name, {
     description: tool.description,
     inputSchema: tool.schema,
-    annotations: { readOnlyHint: Boolean(tool.readOnly), destructiveHint: name === 'open_swing' || name === 'update_shape', openWorldHint: false },
+    annotations: { readOnlyHint: Boolean(tool.readOnly), destructiveHint: DESTRUCTIVE.has(name), openWorldHint: false },
   }, async (args) => {
     try {
       const result = await callControl(socketPath, name, args);
-      if (name === 'get_frame') {
+      if (typeof result?.dataUrl === 'string') {
         const { dataUrl, ...metadata } = result;
         return { content: [
           { type: 'text', text: JSON.stringify(metadata) },

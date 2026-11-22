@@ -11,6 +11,7 @@ import { renderShape } from '../utils/shapeRenderer';
 import { shapeFromCommand, shapeToVideo, mapShape } from '../utils/controlShapes';
 import { annotationVisible, validateVisibility } from '../utils/annotationTiming';
 import { seekDecoded, createExportVideo, releaseVideo } from '../utils/decodedVideo';
+import { outputSize, sheetLayout, drawAgentFrame } from '../utils/agentFrames';
 import { getHandlesForShape, hitTestHandle, findShapeAtPos, updateShapeWithHandle } from '../utils/shapeEditing';
 
 // crypto.randomUUID only exists on https/localhost; phones testing the dev
@@ -294,6 +295,61 @@ const VideoCanvas = forwardRef(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getViewCrop reads current zoom/pan each render
     }, [src, markers, zoomLevel, panX, panY]);
 
+    // Agent stills. Crop is normalized to the whole video; grid labels use the
+    // same coordinates draw_shape takes.
+    const captureView = async ({ crop, maxWidth, grid, annotations = true } = {}) => {
+      const vid = videoRef.current;
+      if (!vid?.videoWidth) return null;
+      const size = outputSize(crop, vid.videoWidth, vid.videoHeight, maxWidth);
+      const canvas = document.createElement('canvas');
+      canvas.width = size.width; canvas.height = size.height;
+      try {
+        drawAgentFrame(canvas.getContext('2d'), vid, {
+          videoWidth: vid.videoWidth, videoHeight: vid.videoHeight, crop, grid,
+          dest: { x: 0, y: 0, w: size.width, h: size.height },
+          shapes: annotations ? shapesRef.current.filter(eligible) : [],
+          pendingPoints: annotations ? pendingAnglePoints() : [], pendingColor: color,
+        });
+      } catch (e) {
+        console.warn('Agent frame: drawImage failed', e.message);
+        return null;
+      }
+      return { dataUrl: canvas.toDataURL('image/jpeg', 0.88), imageWidth: size.width, imageHeight: size.height };
+    };
+
+    // Contact sheet of several moments, decoded on a hidden copy of the video
+    // so the visible pane and its playback position never move.
+    const captureTimes = async (items, { crop, tileWidth = 320, columns, grid, annotations = true } = {}) => {
+      const original = videoRef.current;
+      if (!original?.videoWidth) throw new Error('No video loaded in this pane.');
+      const token = src;
+      const vid = await createExportVideo(src);
+      try {
+        const tile = outputSize(crop, vid.videoWidth, vid.videoHeight, tileWidth);
+        const layout = sheetLayout(items.length, tile.width, tile.height, columns);
+        const canvas = document.createElement('canvas');
+        canvas.width = layout.width; canvas.height = layout.height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const tiles = [];
+        for (let i = 0; i < items.length; i++) {
+          const time = Math.min(Math.max(0, items[i].time), Math.max(0, vid.duration - 0.001));
+          const frame = await seekDecoded(vid, time);
+          if (sourceRef.current !== token) throw new Error('Source replaced during capture.');
+          const decodedTime = Number.isFinite(frame?.mediaTime) ? frame.mediaTime : vid.currentTime;
+          // Label by playhead time, the same count the scrubber and get_state use.
+          const caption = items[i].caption(vid.currentTime, i + 1);
+          drawAgentFrame(ctx, vid, {
+            videoWidth: vid.videoWidth, videoHeight: vid.videoHeight, crop, grid, caption,
+            dest: { x: layout.tiles[i].x, y: layout.tiles[i].y, w: tile.width, h: tile.height },
+            shapes: annotations ? shapesRef.current.filter((shape) => annotationVisible(shape, { time: vid.currentTime, frame, markers })) : [],
+          });
+          tiles.push({ tile: i + 1, time: vid.currentTime, decodedTime });
+        }
+        return { dataUrl: canvas.toDataURL('image/jpeg', 0.85), imageWidth: canvas.width, imageHeight: canvas.height, columns: layout.columns, rows: layout.rows, tiles };
+      } finally { releaseVideo(vid); }
+    };
+
     useImperativeHandle(
       ref,
       () => ({
@@ -341,8 +397,10 @@ const VideoCanvas = forwardRef(
         },
         // Puts back drawings saved with a swing. They're stored in normalized
         // video coordinates, so they land in the same place at any pane size.
-        restoreShapes: (saved) => {
-          const next = (saved ?? []).map((shape) => ({ ...shape, id: shape.id ?? newId(), sourceId, coordinates: 'source', visibility: shape.visibility ?? { kind: 'all' } }));
+        // With append, they're added after the drawings already on the video.
+        restoreShapes: (saved, { append = false } = {}) => {
+          const added = (saved ?? []).map((shape) => ({ ...shape, id: shape.id ?? newId(), sourceId, coordinates: 'source', visibility: shape.visibility ?? { kind: 'all' } }));
+          const next = append ? [...shapesRef.current, ...added] : added;
           shapesRef.current = next;
           setShapes(next);
           setSelectedIndex(-1);
@@ -355,6 +413,8 @@ const VideoCanvas = forwardRef(
           draggingHandle.current = null;
         },
         getSnapshot: takeSnapshot,
+        captureView,
+        captureTimes,
         captureFrameAtTime,
         drawExportFrame,
         getPaneSize: () => ({
