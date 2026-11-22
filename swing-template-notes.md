@@ -191,8 +191,8 @@ impact point, or the ball-first check.
    - **Side bill (from the golf-instruction wiki, `concepts/shaft-lean.md`):**
      forward lean also biases the face open, so more lean without managing
      the face can trade a high, weak shot for a lower ball that starts right
-     (Eric Allen, 2026-09-26). With the driver, too much forward lean costs
-     launch (Rob Schwartz, 2026-08-02).
+     (student lesson, 2026-09-26). With the driver, too much forward lean costs
+     launch (student lesson, 2026-08-02).
 
 2. **Hip slide through the lead thigh line.** How far the hips have slid
    toward the target, through the P1 lead thigh line, at impact.
@@ -252,37 +252,31 @@ impact point, or the ball-first check.
    and the shaft as an angle against vertical from the hosel.
    - Rory (2026-11-06): lead arm 176°, trail arm 160°. Mitchell said "not
      quite" about this drawing without saying what was off.
-   - **Keith (2026-11-06, face-on P7 at 6.59s):** lead arm about 165°, a
-     real bend (Mitchell confirmed). Trail arm about 178°. Shaft leans
-     back about 3°, so no forward lean (Mitchell confirmed). Mitchell read
-     the lead wrist in extension and the trail wrist in flexion. Together
-     that's a clubhead passing the hands: no shaft lean, a cupped lead
-     wrist, and a bent lead arm.
+   - **Pattern (from a student example, Mitchell confirmed 2026-11-06):** a
+     bent lead arm, no forward shaft lean, the lead wrist in extension
+     (cupped) and the trail wrist in flexion together mean the clubhead is
+     passing the hands.
 
-### Keith face-on, P7 readings (2026-11-06)
+Student readings for these checks are kept in the private golf-instruction
+brain, not in this repository.
 
-1080×1920 at 60 fps, P1 at 0.2s, P7 at 6.59s (decoded 6.583). At P7 the ball
-has already moved about 35px forward against the face, so the frame is about
-1–2 ms after contact. **Measure camera drift from the frame before impact**
-(6.533 here), while the ball is still at rest. The trail and lead shoes
-agree with it.
+### Measuring tips from a student P7 example (2026-11-06)
 
-- **Camera drift P1 → impact:** ball about 9px toward the trail side and
-  18px up. Ball is about 21px wide (about 0.08 in per px).
-- **Lines drawn at P1:** yellow ball circle, orange lead thigh line along the
-  outside of the shorts, purple head height line on top of the hair, and a
-  purple vertical line at the lead side of the head.
-- **Hip slide:** the widest point of the lead hip went from about x 596 to
-  x 602, about 15px toward the target after drift. That's about 0.7 ball
-  widths, roughly 1.2 in, **under the 2 in minimum**. Higher up at the belt
-  it reads more (about 29px) because the pelvis has turned open. Mitchell
-  confirmed the readings. Too little slide doesn't put the low point behind
-  the ball by itself; it means Keith's low point is less forward than it
-  could be, so anything else he does to move it forward has more work to do.
-- **Head:** the top of the hair is about 13px (about 1 in) lower after
-  drift. On screen it looks slightly above the line because the camera
-  rose 18px. Side to side it's within about 3px of address. ✓ for an iron.
-  The drop isn't coming from shaft lean, because he has none.
+- **Measure camera drift from the frame before impact**, while the ball is
+  still at rest. By the P7 frame the ball may already have moved forward
+  against the face. The shoes are a second check on the drift.
+- **Lines to draw at P1:** yellow ball circle, lead thigh line along the
+  outside of the shorts, head height line on top of the hair, and a vertical
+  line at the lead side of the head.
+- **Hip slide:** measure at the widest point of the lead hip. Higher up at
+  the belt it reads more, because the pelvis has turned open. Too little
+  slide doesn't put the low point behind the ball by itself; it means the
+  low point is less forward than it could be, so anything else the golfer
+  does to move it forward has more work to do.
+- **Head:** judge the head against the height line only after subtracting
+  camera drift. A camera that rose can make a lower head look level or above
+  the line. Without shaft lean, a head drop can't be explained as the normal
+  shaft-lean drop.
 
 ### P6: Shaft parallel in the downswing
 
@@ -292,29 +286,27 @@ agree with it.
    shaft to the clubhead. What counts as good isn't given yet.
    - Rory (6.871s): about 135°. Lead forearm about 45° above horizontal,
      shaft horizontal.
-   - Keith (6.401s): about 137°. Lead forearm about 49° above horizontal,
-     shaft dipping about 6° toward the clubhead.
-   - The two numbers came out almost the same, but **Mitchell reads less
-     hinge for Keith** (below). My face-on lead angle didn't show the
-     difference, so don't trust it alone. Read it with the trail angle and
-     the wrists themselves.
+   - A student whose hinge Mitchell read as clearly less than Rory's came
+     out almost the same on this angle. The face-on lead angle didn't show
+     the difference, so don't trust it alone. Read it with the trail angle
+     and the wrists themselves.
 2. **Trail forearm–shaft angle (Mitchell 2026-11-06).** Same method on the
    trail arm: vertex where the trail forearm line meets the shaft, one arm up
    the trail forearm to the elbow, the other down the shaft.
    - Rory: about 81°. Trail forearm nearly vertical, trail wrist well bent
      back.
-   - Keith: about 117°, about 36° more open than Rory. His trail wrist has
-     already given up much of its bend at P6, which fits the trail wrist
-     flexion and missing shaft lean Mitchell read at P7.
+   - A trail angle much more open than Rory's means the trail wrist has
+     already given up much of its bend at P6. It goes with trail wrist
+     flexion and missing shaft lean at P7.
    - Face-on angles are flat projections. The forearm and shaft aren't
      square to the camera, so treat the number as a comparison between
      swings filmed the same way, not a true joint angle.
 3. **What these angles show: wrist hinge and lag (Mitchell 2026-11-06).**
    - Rory has more wrist hinge. His lead wrist is more radially deviated and
      his trail wrist is extended, which gives him "the lag look."
-   - Keith is the opposite: less hinge, lead wrist less radial, trail wrist
-     less extended. That's the same pattern he shows at P7 (lead wrist
-     extension, trail wrist flexion, no shaft lean).
+   - The opposite (less hinge, lead wrist less radial, trail wrist less
+     extended) tends to show up again at P7 as lead wrist extension, trail
+     wrist flexion and no shaft lean.
    - Name the wrist positions when reading P6: lead wrist radial or ulnar
      deviation, and trail wrist extension or flexion.
 4. **Lead thigh at P6 against the P1 lead thigh line (Mitchell 2026-11-06).**
@@ -325,17 +317,14 @@ agree with it.
      about 61–67px past the line after drift (lower thigh to hip), about
      2.7–2.9 ball widths, roughly 4.5–4.9 in. At P7 it was about 70px, so
      almost all of his slide is done by P6.
-   - Keith: drift about 9px toward the trail side, 18px up. Lead thigh
-     about 10–11px past the line after drift, about 0.5 ball widths,
-     roughly 0.9 in. At P7 it was about 15px (1.2 in).
 
-| P6 (2026-11-06) | Rory | Keith |
-|---|---|---|
-| Lead forearm–shaft angle | ≈135° | ≈137° |
-| Trail forearm–shaft angle | ≈81° | ≈117° |
-| Wrists (Mitchell) | Lead radial, trail extended (lag) | Opposite, less hinge |
-| Lead thigh past P1 line | ≈4.5–4.9 in (2.7–2.9 ball widths) | ≈0.9 in (0.5 ball widths) |
-| Same at P7, for reference | ≈5 in | ≈1.2 in |
+| P6 reference (Rory, 2026-11-06) | Rory |
+|---|---|
+| Lead forearm–shaft angle | ≈135° |
+| Trail forearm–shaft angle | ≈81° |
+| Wrists (Mitchell) | Lead radial, trail extended (lag) |
+| Lead thigh past P1 line | ≈4.5–4.9 in (2.7–2.9 ball widths) |
+| Same at P7, for reference | ≈5 in |
 
 ### P2, P3, P5, P8–P10
 
@@ -520,20 +509,20 @@ Compare the student with Rory (green-shirt DTL, P3 2.36s).
    butt end. It should point inside the golf ball, between the ball and the
    golfer. That shows the forearms haven't over-rotated.
 2. **Face vertical to the ground.** The leading edge should stand straight up
-   and down. Rory's is hard to see but vertical. Robert (DTL before Oct 31,
+   and down. Rory's is hard to see but vertical. The student (DTL before Oct 31,
    about 4.75s) has the face lying open.
 3. **Butt end of the grip near the toe line.** The end of the grip should be
    at about the line of the toes.
    - **Drawing (corrected by Mitchell 2026-11-06):** at P1 (address), draw a
      vertical line (`vline`) through the **butt end of the club**, not the
      toes, visible for the whole swing. At P3, compare the grip end with
-     it. Mitchell's lines: Rory x ≈ 0.427 (720×1280), Robert x ≈ 0.505
+     it. Mitchell's lines: Rory x ≈ 0.427 (720×1280), the student x ≈ 0.505
      (1080×1920). I misread these as toe lines at first.
    - **Shaft line:** Mitchell also drew a line along the shaft at P3,
      extended down toward the ball, to check the shaft-points-inside-the-ball
      reading.
 
-My first read flagged other differences: Robert's shaft is flatter and laid
+My first read flagged other differences: the student's shaft is flatter and laid
 off, his hands are lower and farther out, he turned less, and his trail elbow
 is higher. Mitchell didn't confirm any of these as P3 checks. The three
 checks above are his.
@@ -542,16 +531,16 @@ checks above are his.
 
 1. **Shaft line into the body.** Draw the shaft line from the clubhead up
    through the hands and extend it into the golfer. On Rory it goes through
-   the **belt buckle**. If it hits lower (Robert: toward the crotch), the
+   the **belt buckle**. If it hits lower (the student: toward the crotch), the
    hands are too low and the golfer is bent over too much.
-2. **Forward bend.** Robert has too much forward bend compared with Rory.
+2. **Forward bend.** The student has too much forward bend compared with Rory.
    My first eyeball read and my spine lines (46° vs 48°) missed this.
    Mitchell read it, and the shaft-into-body line shows it better than a
    spine line does.
 3. **Knee flex (angle tool: hip, knee, ankle, trail leg).** After Mitchell
-   re-placed the points: Rory **154°**, Robert **148°**. Rory has clearly
-   less knee bend than Robert.
-   - **Mitchell's chain:** Robert's extra knee flex goes with the rest of his
+   re-placed the points: Rory **154°**, the student **148°**. Rory has clearly
+   less knee bend than the student.
+   - **Mitchell's chain:** The student's extra knee flex goes with the rest of his
      address. His butt is farther behind his heels, his chest is bent forward
      too much, and his hands hang too low (shaft line toward the crotch).
      Read these together as one posture pattern, not as separate faults.
@@ -560,7 +549,7 @@ checks above are his.
      knee angle together. Prescribe the hand height. Don't coach the knees
      or the chest separately.
    - The yellow butt lines measured this too: butt behind the heels was
-     about 8% of body height for Rory and about 10% for Robert. I wrongly
+     about 8% of body height for Rory and about 10% for the student. I wrongly
      called that "the same" at first.
 
 **Lessons:** draw the lines before claiming a difference. My unmeasured
@@ -572,7 +561,7 @@ when they weren't, and I called the knee flex different when it wasn't.
 These are Mitchell's P1–P7 markers. Use them as ground truth for these two
 clips.
 
-| P | Rory, green-shirt DTL (`Swingstr Library/youtube/5nCn_QEHD0I.mp4`, 720×1280, 6.90s) | Robert Sinno, "DTL Iron b4 10/31/26" (1080×1920, 9.97s) |
+| P | Rory, green-shirt DTL (`Swingstr Library/youtube/5nCn_QEHD0I.mp4`, 720×1280, 6.90s) | Student, "DTL Iron" clip (1080×1920, 9.97s) |
 |---|---|---|
 | P1 | 0.000 | 2.060 |
 | P2 | 1.883 | 4.246 |
@@ -587,9 +576,9 @@ Gaps between positions (seconds):
 | | P1→P2 | P2→P3 | P3→P4 | P4→P5 | P5→P6 | P6→P7 |
 |---|---|---|---|---|---|---|
 | Rory | 1.88 | 0.45 | 0.89 | 0.70 | 0.25 | 0.15 |
-| Robert | 2.19 | 0.73 | 1.09 | 0.76 | 0.15 | 0.20 |
+| The student | 2.19 | 0.73 | 1.09 | 0.76 | 0.15 | 0.20 |
 
-- Robert's P1 is 2.06, before his forward press, not after it.
+- The student's P1 is 2.06, before his forward press, not after it.
 - **P5 to P6 is fast.** Only about 0.15–0.25s separate them, so step
   frame by frame there.
 - Both clips play in slow motion, so the seconds are clip time, not real time.
@@ -598,46 +587,46 @@ Gaps between positions (seconds):
 
 - Mitchell asked for the yellow P1 butt line again: a vertical line from the
   back of the butt at address down to the ground, shown for the whole swing.
-  Rory x 0.139 (720×1280). Robert x 0.319 (1080×1920).
+  Rory x 0.139 (720×1280). The student x 0.319 (1080×1920).
 - Camera reference: a yellow ball circle at P1. Rory center about
-  (0.921, 0.897). Robert about (0.672, 0.604). Robert's ball is partly
+  (0.921, 0.897). The student about (0.672, 0.604). The student's ball is partly
   behind the clubhead at P1, so his circle could be off by a few px.
 - P4 reads after drift correction:
   - Rory: camera drift about 2px left, 10px down. Butt about 10px *behind*
     the line, so depth was held.
-  - Robert: camera drift about 9px left, 15px down. Butt about 29px *toward
+  - The student: camera drift about 9px left, 15px down. Butt about 29px *toward
     the ball* (20px on screen plus 9px of drift). He lost depth.
 - **Rule (Mitchell 2026-11-06):** at P4 the butt stays on the address butt
   line or moves farther behind it, as Rory's did. Any move toward the ball
-  is a fault (Robert). Correct for camera drift first.
+  is a fault (the student). Correct for camera drift first.
 
 - **Clubface at P4 (Mitchell 2026-11-06):** the leading edge should about
   match the lead forearm, or be slightly closed compared with it. Rory is
   about square, with the edge parallel to his arm line (both about 45° on
-  screen). Robert is open: his face hangs vertically (edge about 77° on
+  screen). The student is open: his face hangs vertically (edge about 77° on
   screen).
   - Drawing: one line on the leading edge and one along the lead arm.
 - **Lead arm at P4 (Mitchell 2026-11-06):** draw a line along the lead arm.
   Rory's lead arm covers his trail shoulder (arm line about 45° on screen).
-  Robert's arm is too vertical (about 70°), so his trail shoulder shows
+  The student's arm is too vertical (about 70°), so his trail shoulder shows
   above or behind the arm. Wiki link: a lead arm too vertical at the top
-  can stop the club from coming from behind, so the path goes left (Rider
-  Smith).
+  can stop the club from coming from behind, so the path goes left (student
+  lesson).
 
 - **Spine angle from P1 to P4 (Mitchell 2026-11-06):** check that the
   spine keeps its tilt toward the ground from address to the top. This is
   the big one for beginners and high handicappers. The common fault: the
   head rises, the spine gets more vertical, and the shoulders turn flatter.
-  This matches the wiki's tilt-turn-extension page (Michael Stewart).
-  Robert keeps his tilt pretty well, so it isn't his fault even though he
+  This matches the wiki's tilt-turn-extension page.
+  The student keeps his tilt pretty well, so it isn't his fault even though he
   lost depth with the butt.
   - Drawing: a spine line at P1 and another at P4, then compare the tilt.
   - Rory: his spine stays in the same place relative to the camera from P1
     to P4, so he tilted, turned and extended correctly. One P1 spine line
     is enough. If the P4 spine still lines up with it, no second line is
     needed (Mitchell 2026-11-06). Add a second line only when the spine
-    has moved, as with Robert.
-  - Robert, from Mitchell's two lines: P1 about 51.0° from horizontal, P4
+    has moved, as with the student.
+  - The student, from Mitchell's two lines: P1 about 51.0° from horizontal, P4
     about 50.1°, so the tilt is basically unchanged. ✓ The P4 line sits
     about 44px closer to the ball along its whole length. The spine kept
     its angle but the whole torso shifted toward the ball, which matches
@@ -662,52 +651,52 @@ session, pick a position from this list and confirm checks one at a time.
   swing direction right. (address levers)
 - DTL posture: hinge from the hips, butt back, chest over. Too upright limits
   turn; too bent with low hands can start an early forearm roll → laid off,
-  open face (James Swan).
+  open face (student lesson).
 - DTL hand height: low hands, toe up, shaft at the belt buckle went with fat
-  and toe strikes; higher hands, toe down (Al Cairns L6).
+  and toe strikes; higher hands, toe down (student lesson).
 - Distance from the ball: crowding → heel; too far + flat shoulder turn →
-  shank (Siena).
+  shank (student lesson).
 - DTL body aim: feet, hips, shoulders vs target line. Shoulders matter more
   than feet. Closed = path right, open = path left.
 
 ### P2, takeaway (DTL)
 - Clubhead under the shaft line = face fanned open; above = more closed
-  (Eric Allen, Ben Siminoff).
-- Face fanned open to the spine angle (Mason Higginbotham).
-- Outside takeaway → club from above; fix was inside/around (Al Cairns L3).
+  (two student lessons).
+- Face fanned open to the spine angle (student lesson).
+- Outside takeaway → club from above; fix was inside/around (student lesson).
 
 ### P3–P4, backswing
 - Face-on shoulder line at P2, P3, P4: each line flatter than the last = tilt
-  lost late, head rises, inconsistent contact (Michael Stewart). Coach the
+  lost late, head rises, inconsistent contact (student lesson). Coach the
   shoulders; head line is the verifier.
 - DTL shaft at P4: across the line → path in-to-out; laid off → out-to-in.
   A lever, not a fault by itself.
 - Lead wrist at P4: cupped → face open; flat/bowed → closed.
 - Lead arm too vertical at the top → club can't come from behind, path left
-  (Rider Smith).
-- Flat "merry-go-round" shoulder plane → heel/shank (Olivia Tan, Siena).
+  (student lesson).
+- Flat "merry-go-round" shoulder plane → heel/shank (two student lessons).
 
 ### P5–P6, downswing
 - Face-on shaft should flatten from P4; same or steeper = over the top.
 - Face-on pelvis vs torso sway: pelvis toward target with torso back adds
   spine tilt → in-to-out, shallower. Torso toward target removes tilt →
   out-to-in, steeper, holds face open. Compare spine line with P1.
-- Face-on head drop: too much → club outside the ball or fat (Anne
-  Elmajian); high-face strikes (Trevor Hanifin).
+- Face-on head drop: too much → club outside the ball or fat (student
+  lesson); high-face strikes (student lesson).
 - DTL trail elbow stays close; flying away = over the top.
 - DTL club above the P1 shaft line → path left; under then over showed with
   a positive path. Leitz caveat: plane on video isn't path; check the ball.
 
 ### P7, impact (beyond the three confirmed checks)
 - Face-on arms: both elbows bent ("home plate") shortens radius, strike too
-  high (Chris McGee); target is a lowercase y. Bent lead arm can be a save
-  after a body drop (Trevor Hanifin).
+  high (student lesson); target is a lowercase y. Bent lead arm can be a save
+  after a body drop (student lesson).
 - DTL hips and shoulders too open with lead arm out and above plane → path
   left.
 - DTL early extension: hips toward the ball, standing out of spine angle.
 
 ### P8–P10
-- Arms stay extended through P8 because the body keeps turning (Al Cairns,
-  Eric Allen).
+- Arms stay extended through P8 because the body keeps turning (two student
+  lessons).
 - Finish balanced and held, trail foot up on its toe, body facing target
-  (Tap Tap). Held finish helped flight (Henry Minck).
+  (Tap Tap). Held finish helped flight (student lesson).
