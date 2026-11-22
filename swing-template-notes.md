@@ -252,37 +252,31 @@ impact point, or the ball-first check.
    and the shaft as an angle against vertical from the hosel.
    - Rory (2026-11-06): lead arm 176°, trail arm 160°. Mitchell said "not
      quite" about this drawing without saying what was off.
-   - **Keith (2026-11-06, face-on P7 at 6.59s):** lead arm about 165°, a
-     real bend (Mitchell confirmed). Trail arm about 178°. Shaft leans
-     back about 3°, so no forward lean (Mitchell confirmed). Mitchell read
-     the lead wrist in extension and the trail wrist in flexion. Together
-     that's a clubhead passing the hands: no shaft lean, a cupped lead
-     wrist, and a bent lead arm.
+   - **Pattern (from a student example, Mitchell confirmed 2026-11-06):** a
+     bent lead arm, no forward shaft lean, the lead wrist in extension
+     (cupped) and the trail wrist in flexion together mean the clubhead is
+     passing the hands.
 
-### Keith face-on, P7 readings (2026-11-06)
+Student readings for these checks are kept in the private golf-instruction
+brain, not in this repository.
 
-1080×1920 at 60 fps, P1 at 0.2s, P7 at 6.59s (decoded 6.583). At P7 the ball
-has already moved about 35px forward against the face, so the frame is about
-1–2 ms after contact. **Measure camera drift from the frame before impact**
-(6.533 here), while the ball is still at rest. The trail and lead shoes
-agree with it.
+### Measuring tips from a student P7 example (2026-11-06)
 
-- **Camera drift P1 → impact:** ball about 9px toward the trail side and
-  18px up. Ball is about 21px wide (about 0.08 in per px).
-- **Lines drawn at P1:** yellow ball circle, orange lead thigh line along the
-  outside of the shorts, purple head height line on top of the hair, and a
-  purple vertical line at the lead side of the head.
-- **Hip slide:** the widest point of the lead hip went from about x 596 to
-  x 602, about 15px toward the target after drift. That's about 0.7 ball
-  widths, roughly 1.2 in, **under the 2 in minimum**. Higher up at the belt
-  it reads more (about 29px) because the pelvis has turned open. Mitchell
-  confirmed the readings. Too little slide doesn't put the low point behind
-  the ball by itself; it means Keith's low point is less forward than it
-  could be, so anything else he does to move it forward has more work to do.
-- **Head:** the top of the hair is about 13px (about 1 in) lower after
-  drift. On screen it looks slightly above the line because the camera
-  rose 18px. Side to side it's within about 3px of address. ✓ for an iron.
-  The drop isn't coming from shaft lean, because he has none.
+- **Measure camera drift from the frame before impact**, while the ball is
+  still at rest. By the P7 frame the ball may already have moved forward
+  against the face. The shoes are a second check on the drift.
+- **Lines to draw at P1:** yellow ball circle, lead thigh line along the
+  outside of the shorts, head height line on top of the hair, and a vertical
+  line at the lead side of the head.
+- **Hip slide:** measure at the widest point of the lead hip. Higher up at
+  the belt it reads more, because the pelvis has turned open. Too little
+  slide doesn't put the low point behind the ball by itself; it means the
+  low point is less forward than it could be, so anything else the golfer
+  does to move it forward has more work to do.
+- **Head:** judge the head against the height line only after subtracting
+  camera drift. A camera that rose can make a lower head look level or above
+  the line. Without shaft lean, a head drop can't be explained as the normal
+  shaft-lean drop.
 
 ### P6: Shaft parallel in the downswing
 
@@ -292,29 +286,27 @@ agree with it.
    shaft to the clubhead. What counts as good isn't given yet.
    - Rory (6.871s): about 135°. Lead forearm about 45° above horizontal,
      shaft horizontal.
-   - Keith (6.401s): about 137°. Lead forearm about 49° above horizontal,
-     shaft dipping about 6° toward the clubhead.
-   - The two numbers came out almost the same, but **Mitchell reads less
-     hinge for Keith** (below). My face-on lead angle didn't show the
-     difference, so don't trust it alone. Read it with the trail angle and
-     the wrists themselves.
+   - A student whose hinge Mitchell read as clearly less than Rory's came
+     out almost the same on this angle. The face-on lead angle didn't show
+     the difference, so don't trust it alone. Read it with the trail angle
+     and the wrists themselves.
 2. **Trail forearm–shaft angle (Mitchell 2026-11-06).** Same method on the
    trail arm: vertex where the trail forearm line meets the shaft, one arm up
    the trail forearm to the elbow, the other down the shaft.
    - Rory: about 81°. Trail forearm nearly vertical, trail wrist well bent
      back.
-   - Keith: about 117°, about 36° more open than Rory. His trail wrist has
-     already given up much of its bend at P6, which fits the trail wrist
-     flexion and missing shaft lean Mitchell read at P7.
+   - A trail angle much more open than Rory's means the trail wrist has
+     already given up much of its bend at P6. It goes with trail wrist
+     flexion and missing shaft lean at P7.
    - Face-on angles are flat projections. The forearm and shaft aren't
      square to the camera, so treat the number as a comparison between
      swings filmed the same way, not a true joint angle.
 3. **What these angles show: wrist hinge and lag (Mitchell 2026-11-06).**
    - Rory has more wrist hinge. His lead wrist is more radially deviated and
      his trail wrist is extended, which gives him "the lag look."
-   - Keith is the opposite: less hinge, lead wrist less radial, trail wrist
-     less extended. That's the same pattern he shows at P7 (lead wrist
-     extension, trail wrist flexion, no shaft lean).
+   - The opposite (less hinge, lead wrist less radial, trail wrist less
+     extended) tends to show up again at P7 as lead wrist extension, trail
+     wrist flexion and no shaft lean.
    - Name the wrist positions when reading P6: lead wrist radial or ulnar
      deviation, and trail wrist extension or flexion.
 4. **Lead thigh at P6 against the P1 lead thigh line (Mitchell 2026-11-06).**
@@ -325,17 +317,14 @@ agree with it.
      about 61–67px past the line after drift (lower thigh to hip), about
      2.7–2.9 ball widths, roughly 4.5–4.9 in. At P7 it was about 70px, so
      almost all of his slide is done by P6.
-   - Keith: drift about 9px toward the trail side, 18px up. Lead thigh
-     about 10–11px past the line after drift, about 0.5 ball widths,
-     roughly 0.9 in. At P7 it was about 15px (1.2 in).
 
-| P6 (2026-11-06) | Rory | Keith |
-|---|---|---|
-| Lead forearm–shaft angle | ≈135° | ≈137° |
-| Trail forearm–shaft angle | ≈81° | ≈117° |
-| Wrists (Mitchell) | Lead radial, trail extended (lag) | Opposite, less hinge |
-| Lead thigh past P1 line | ≈4.5–4.9 in (2.7–2.9 ball widths) | ≈0.9 in (0.5 ball widths) |
-| Same at P7, for reference | ≈5 in | ≈1.2 in |
+| P6 reference (Rory, 2026-11-06) | Rory |
+|---|---|
+| Lead forearm–shaft angle | ≈135° |
+| Trail forearm–shaft angle | ≈81° |
+| Wrists (Mitchell) | Lead radial, trail extended (lag) |
+| Lead thigh past P1 line | ≈4.5–4.9 in (2.7–2.9 ball widths) |
+| Same at P7, for reference | ≈5 in |
 
 ### P2, P3, P5, P8–P10
 
