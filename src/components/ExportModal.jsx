@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { X, Download, Loader2, LayoutGrid, Film } from 'lucide-react';
+import { X, Download, Loader2, LayoutGrid, Film, Camera } from 'lucide-react';
 import { DEFAULT_MARKER_LABELS } from '../constants/markers';
 import { useEscapeClose } from '../hooks/useEscapeClose';
 import {
@@ -8,6 +8,7 @@ import {
   getMarkerColumns,
 } from '../utils/swingSequenceExport';
 import SocialExport from './SocialExport';
+import ScreenshotExport from './ScreenshotExport';
 
 export default function ExportModal({
   show,
@@ -169,6 +170,7 @@ export default function ExportModal({
               {[
                 { value: 'sequence', label: 'Sequence', icon: LayoutGrid },
                 { value: 'video', label: 'Video', icon: Film },
+                { value: 'screenshot', label: 'Screenshot', icon: Camera },
               ].map(({ value, label, icon: Icon }) => (
                 <button
                   key={value}
@@ -193,7 +195,7 @@ export default function ExportModal({
         </div>
 
         <div ref={contentRef} className="export-content flex flex-1 min-h-0 overflow-hidden">
-          {mode === 'video' ? <SocialExport workflow={workflow} /> : <>
+          {mode === 'video' ? <SocialExport workflow={workflow} /> : mode === 'screenshot' ? <ScreenshotExport workflow={workflow} /> : <>
           {/* Config panel */}
           <div className="sequence-settings w-72 shrink-0 border-r border-gray-700 p-4 overflow-y-auto space-y-5">
             {mode === 'sequence' ? (
